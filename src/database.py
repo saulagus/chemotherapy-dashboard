@@ -1,11 +1,16 @@
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 
 DB_PATH = 'chemo_dashboard.db'
 
+sqlite3.register_adapter(date, lambda d: d.isoformat())
+sqlite3.register_adapter(datetime, lambda dt: dt.isoformat())
+sqlite3.register_converter('DATE', lambda b: date.fromisoformat(b.decode()))
+sqlite3.register_converter('TIMESTAMP', lambda b: datetime.fromisoformat(b.decode()))
+
 def get_connection(db_path=None):
     """Returns a connection to the SQLite database."""
-    return sqlite3.connect(db_path or DB_PATH)
+    return sqlite3.connect(db_path or DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
 
 def create_tables(conn=None):
     """Creates the necessary tables if they don't already exist."""
