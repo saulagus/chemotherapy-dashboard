@@ -1,13 +1,17 @@
 import sqlite3
 from datetime import datetime
 
-def get_connection():
-    """Returns a connection to the SQLite database."""
-    return sqlite3.connect('chemo_dashboard.db')
+DB_PATH = 'chemo_dashboard.db'
 
-def create_tables():
+def get_connection(db_path=None):
+    """Returns a connection to the SQLite database."""
+    return sqlite3.connect(db_path or DB_PATH)
+
+def create_tables(conn=None):
     """Creates the necessary tables if they don't already exist."""
-    conn = get_connection()
+    close_after = conn is None
+    if conn is None:
+        conn = get_connection()
     cursor = conn.cursor()
 
     # Patients table
@@ -58,7 +62,8 @@ def create_tables():
     ''')
 
     conn.commit()
-    conn.close()
+    if close_after:
+        conn.close()
 
 if __name__ == "__main__":
     create_tables()
