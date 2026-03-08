@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import messagebox
 import sys
 import os
 
@@ -8,6 +7,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from database import get_connection, create_tables
+from utils import show_error
 
 
 class App(tk.Tk):
@@ -25,9 +25,11 @@ class App(tk.Tk):
         # Initialize the Tkinter root window (the parent class).
         # This must be called before any other Tkinter setup.
         super().__init__()
-        self.conn = None  # Database connection — set in _init_database().
+        self.conn = None    # Database connection — set in _init_database().
+        self.frames = {}    # Stores instantiated views keyed by their class.
         self._setup_window()
         self._init_database()
+        self._init_navigation()
 
     def _setup_window(self):
         # Set the text shown in the OS title bar.
@@ -53,13 +55,50 @@ class App(tk.Tk):
             # Create tables if they don't exist yet (safe on first run).
             create_tables(self.conn)
         except Exception as e:
-            # messagebox.showerror() displays a native OS error dialog.
-            messagebox.showerror("Database Error", f"Failed to initialize database:\n{e}")
+            show_error("Database Error", f"Failed to initialize database:\n{e}")
             # destroy() closes the window and ends the application.
             self.destroy()
         # Returns nothing.
         # On success: the database connection is open and all tables are ready.
         # On failure: an error dialog was shown and the window has been closed.
+
+    def _init_navigation(self):
+        # Container fills the entire window. All views are stacked inside it.
+        # grid is used so the container stretches to fill available space.
+        self.container = tk.Frame(self)
+        self.container.pack(fill='both', expand=True)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
+
+        # Import here to avoid circular imports (views import App).
+        from views.patient_list import PatientListView
+        self.show_frame(PatientListView)
+
+    def show_frame(self, frame_class, **kwargs):
+        """Switch the visible view to the given frame class.
+
+        If the frame has not been created yet, it is instantiated and stored.
+        DashboardView is always recreated so it reflects the selected patient.
+        kwargs are passed to the frame constructor (e.g. patient_id for dashboard).
+        """
+        # Import here to avoid circular imports at module level.
+        from views.dashboard import DashboardView
+
+        # Always recreate DashboardView so it loads fresh patient data.
+        if frame_class is DashboardView and DashboardView in self.frames:
+            self.frames[DashboardView].destroy()
+            del self.frames[DashboardView]
+
+        if frame_class not in self.frames:
+            # Each view receives the container as its parent and app as a reference,
+            # so views can call app.show_frame() to trigger navigation themselves.
+            frame = frame_class(self.container, self, **kwargs)
+            self.frames[frame_class] = frame
+            # Place every frame in the same grid cell — only the raised one is visible.
+            frame.grid(row=0, column=0, sticky='nsew')
+
+        # tkraise() brings this frame to the top of the stack, hiding all others.
+        self.frames[frame_class].tkraise()
 
     def _on_close(self):
         # Close the database connection before shutting down.

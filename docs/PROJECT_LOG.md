@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-03-08 — Sprint 1 Day 4
+## 2026-03-08 — Sprint 1 Phase 4
 
 ### Completed
 - Added frame navigation system to `main.py`: stacked frames in a container, `show_frame()` switches views with `tkraise()`
@@ -21,16 +21,16 @@
 - None
 
 ### Next
-- Day 5: Implement patient list (Treeview, columns: ID/Name/Cycle/Status, empty state, Add Patient button, click-to-navigate, test empty + manual data)
-- Day 6: Add Patient form (ID, name, start date, protocol, validation, duplicate check, save/cancel, refresh list)
-- Day 7: Patient selection, pass patient_id to dashboard, display patient name in header, test full List→Dashboard→Back flow
-- Day 8: Verify auto-save, test persistence across restarts, handle DB errors, cycle/lab CRUD + tests
-- Day 9: generate_test_data.py — 5 synthetic patients, varied cycles/labs, CLI flag --patients N
-- Day 10: Sprint 1 review — bug fixes, self-demo against acceptance criteria, retrospective, tag v0.1-m1
+- Phase 5: Implement patient list (Treeview, columns: ID/Name/Cycle/Status, empty state, Add Patient button, click-to-navigate, test empty + manual data)
+- Phase 6: Add Patient form (ID, name, start date, protocol, validation, duplicate check, save/cancel, refresh list)
+- Phase 7: Patient selection, pass patient_id to dashboard, display patient name in header, test full List→Dashboard→Back flow
+- Phase 8: Verify auto-save, test persistence across restarts, handle DB errors, cycle/lab CRUD + tests
+- Phase 9: generate_test_data.py — 5 synthetic patients, varied cycles/labs, CLI flag --patients N
+- Phase 10: Sprint 1 review — bug fixes, self-demo against acceptance criteria, retrospective, tag v0.1-m1
 
 ---
 
-## 2026-03-07 — Day 0.2 & Sprint 1 (Days 1-3)
+## 2026-03-07 — Phase 0.2 & Sprint 1 (Phases 1-3)
 
 ### Completed
 - Tested IDE configuration (VS Code) — Python interpreter, test discovery, all 12 tests green
@@ -56,12 +56,12 @@
 - None
 
 ### Next
-- Day 4: Frame navigation, `patient_list.py` view, `dashboard.py` view, error handling
-- Day 5: Patient list with Treeview, Add Patient button, click-to-navigate, test with empty DB
+- Phase 4: Frame navigation, `patient_list.py` view, `dashboard.py` view, error handling
+- Phase 5: Patient list with Treeview, Add Patient button, click-to-navigate, test with empty DB
 
 ---
 
-## 2026-03-07 — Day 0.1 & 0.2 (Setup)
+## 2026-03-07 — Phase 0.1 & 0.2 (Setup)
 
 ### Completed
 - Verified Python 3.12.4
