@@ -21,9 +21,12 @@
 - None
 
 ### Next
-- Day 5: Replace stub `patient_list.py` with full Treeview, Add Patient button, click-to-navigate, empty DB test
-- Day 6: Add Patient form (name, ID, dates, protocol)
-- Day 7: Dashboard structure with patient header and cycle table
+- Day 5: Implement patient list (Treeview, columns: ID/Name/Cycle/Status, empty state, Add Patient button, click-to-navigate, test empty + manual data)
+- Day 6: Add Patient form (ID, name, start date, protocol, validation, duplicate check, save/cancel, refresh list)
+- Day 7: Patient selection, pass patient_id to dashboard, display patient name in header, test full List→Dashboard→Back flow
+- Day 8: Verify auto-save, test persistence across restarts, handle DB errors, cycle/lab CRUD + tests
+- Day 9: generate_test_data.py — 5 synthetic patients, varied cycles/labs, CLI flag --patients N
+- Day 10: Sprint 1 review — bug fixes, self-demo against acceptance criteria, retrospective, tag v0.1-m1
 
 ---
 
