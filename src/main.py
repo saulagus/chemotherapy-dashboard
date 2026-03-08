@@ -3,7 +3,8 @@ from tkinter import messagebox
 import sys
 import os
 
-# Add src/ to the path so database.py and models.py can be imported directly.
+# Add the src/ directory to Python's search path so we can import
+# database.py and models.py using simple 'from database import ...' statements.
 sys.path.insert(0, os.path.dirname(__file__))
 
 from database import get_connection, create_tables
@@ -12,7 +13,8 @@ from database import get_connection, create_tables
 class App(tk.Tk):
     """Main application window for the AC-T Chemotherapy Dashboard.
 
-    Inherits from tk.Tk — App IS the window, no separate root object needed.
+    Inherits from tk.Tk, which is the root Tkinter window.
+    Inheriting means App IS the window — we don't create a separate tk.Tk() object.
     """
 
     TITLE = "AC-T Chemotherapy Dashboard"
@@ -20,47 +22,63 @@ class App(tk.Tk):
     MIN_HEIGHT = 768
 
     def __init__(self):
-        super().__init__()  # Initialize the Tkinter root window first.
-        self.conn = None    # Database connection — set in _init_database().
+        # Initialize the Tkinter root window (the parent class).
+        # This must be called before any other Tkinter setup.
+        super().__init__()
+        self.conn = None  # Database connection — set in _init_database().
         self._setup_window()
         self._init_database()
 
     def _setup_window(self):
-        self.title(self.TITLE)                           # Text shown in the OS title bar.
-        self.geometry(f"{self.MIN_WIDTH}x{self.MIN_HEIGHT}")  # Initial window size in pixels.
-        self.minsize(self.MIN_WIDTH, self.MIN_HEIGHT)    # Prevent shrinking below this size.
+        # Set the text shown in the OS title bar.
+        self.title(self.TITLE)
 
-        # Override the close button (X) to run _on_close instead of quitting immediately,
-        # so the database connection is properly closed before the window is destroyed.
+        # Set the initial window size in pixels (width x height).
+        self.geometry(f"{self.MIN_WIDTH}x{self.MIN_HEIGHT}")
+
+        # Prevent the user from resizing the window smaller than this.
+        self.minsize(self.MIN_WIDTH, self.MIN_HEIGHT)
+
+        # WM_DELETE_WINDOW is the event fired when the user clicks the
+        # window's close button (the X). By default it just destroys the
+        # window without cleanup. We override it to close the DB connection first.
         self.protocol("WM_DELETE_WINDOW", self._on_close)
-        # Returns nothing. Window properties are set and ready.
+        # Returns nothing. The window properties are now set and ready.
 
     def _init_database(self):
-        # Wrap in try/except so a DB failure shows a clear dialog instead of a traceback.
+        # Wrap database setup in a try/except so any failure shows a clear
+        # error message instead of a raw Python traceback.
         try:
             self.conn = get_connection()
-            create_tables(self.conn)  # Safe on first run — creates tables if missing.
+            # Create tables if they don't exist yet (safe on first run).
+            create_tables(self.conn)
         except Exception as e:
+            # messagebox.showerror() displays a native OS error dialog.
             messagebox.showerror("Database Error", f"Failed to initialize database:\n{e}")
-            self.destroy()  # Close the window if the database cannot be initialized.
+            # destroy() closes the window and ends the application.
+            self.destroy()
         # Returns nothing.
-        # On success: connection is open and tables exist.
-        # On failure: error dialog shown and window closed.
+        # On success: the database connection is open and all tables are ready.
+        # On failure: an error dialog was shown and the window has been closed.
 
     def _on_close(self):
-        # Close the DB connection before shutting down to flush writes and release the file.
+        # Close the database connection before shutting down.
+        # This ensures all pending writes are flushed and the file is not left locked.
         if self.conn:
             self.conn.close()
         self.destroy()
-        # Returns nothing. Application has fully shut down.
+        # Returns nothing. The application has fully shut down.
 
 
 def main():
     app = App()
-    # mainloop() keeps the window open and listens for user actions until the app is closed.
+    # mainloop() starts the Tkinter event loop — it listens for user actions
+    # (clicks, key presses, window events) and keeps the window open until
+    # the application is closed.
     app.mainloop()
 
 
 if __name__ == "__main__":
-    # Only runs when this file is executed directly — not when imported.
+    # This block only runs when the file is executed directly (e.g. python main.py).
+    # It does not run when main.py is imported by another file or by tests.
     main()
