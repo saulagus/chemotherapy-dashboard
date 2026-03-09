@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from models import get_all_patients, get_cycles_by_patient
-from utils import show_info
+from models import Patient, get_cycles_by_patient
+from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED
 
 
 class PatientListView(tk.Frame):
@@ -14,43 +14,33 @@ class PatientListView(tk.Frame):
         self._load_patients()
 
     def _build_ui(self):
-        # Header bar: dark background, title left, button right.
-        header = tk.Frame(self, bg='#1e1e1e', pady=10, padx=16)
+        self.configure(bg=BG)
+
+        # Header bar.
+        header = tk.Frame(self, bg=BG, pady=10, padx=16)
         header.pack(fill='x')
 
-        tk.Label(
-            header,
-            text="AC-T Chemotherapy Dashboard",
-            font=('Arial', 13),
-            bg='#1e1e1e',
-            fg='#f0f0f0',
-        ).pack(side='left')
+        tk.Label(header, text="AC-T Chemotherapy Dashboard",
+                 font=('Arial', 13), bg=BG, fg=FG).pack(side='left')
 
-        # Label styled as a button — avoids macOS system gray on tk.Button.
-        add_btn = tk.Label(
-            header,
-            text="+ Add Patient",
-            font=('Arial', 11),
-            bg='#1e1e1e',
-            fg='#f0f0f0',
-            cursor='hand2',
-            padx=8,
-            pady=4,
-        )
+        add_btn = tk.Label(header, text="+ Add Patient",
+                           font=('Arial', 11), bg=BG, fg=FG,
+                           cursor='hand2', padx=8, pady=4)
         add_btn.pack(side='right')
         add_btn.bind('<Button-1>', lambda e: self._on_add_patient())
 
         # Thin separator line below the header.
-        tk.Frame(self, bg='#333333', height=1).pack(fill='x')
+        tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
-        # Section label above the list.
-        content = tk.Frame(self, padx=16, pady=8)
+        # Content area.
+        content = tk.Frame(self, bg=BG, padx=16, pady=8)
         content.pack(fill='both', expand=True)
 
-        tk.Label(content, text="Patients", font=('Arial', 11), fg='#555555').pack(anchor='w', pady=(0, 8))
+        tk.Label(content, text="Patients", font=('Arial', 11),
+                 bg=BG, fg=FG_MUTED).pack(anchor='w', pady=(0, 8))
 
         # Treeview + vertical scrollbar in a shared frame.
-        tree_frame = tk.Frame(content)
+        tree_frame = tk.Frame(content, bg=BG)
         tree_frame.pack(fill='both', expand=True)
 
         scrollbar = ttk.Scrollbar(tree_frame, orient='vertical')
@@ -58,8 +48,9 @@ class PatientListView(tk.Frame):
 
         self.tree = ttk.Treeview(
             tree_frame,
-            columns=('id', 'name', 'current_cycle', 'status'),
-            show='headings',          # hide the default empty first column
+            columns=('id', 'name', 'current_cycle', 'protocol'),
+            show='headings',
+            height=20,            # visible rows before scrolling kicks in
             yscrollcommand=scrollbar.set,
         )
         scrollbar.config(command=self.tree.yview)
@@ -68,15 +59,19 @@ class PatientListView(tk.Frame):
         self.tree.heading('id',            text='Patient ID')
         self.tree.heading('name',          text='Name')
         self.tree.heading('current_cycle', text='Current Cycle')
-        self.tree.heading('status',        text='Status')
+        self.tree.heading('protocol',      text='Protocol')
 
         # Column widths and alignment.
-        self.tree.column('id',            width=120, anchor='center')
-        self.tree.column('name',          width=220)
-        self.tree.column('current_cycle', width=160, anchor='center')
-        self.tree.column('status',        width=130, anchor='center')
+        self.tree.column('id',            width=130, anchor='center', stretch=False)
+        self.tree.column('name',          width=200, anchor='w')
+        self.tree.column('current_cycle', width=140, anchor='center', stretch=False)
+        self.tree.column('protocol',      width=200, anchor='center', stretch=False)
 
         self.tree.pack(fill='both', expand=True)
+
+        # Alternating row stripe colours.
+        self.tree.tag_configure('even', background=BG_ALT)
+        self.tree.tag_configure('odd',  background=BG_ROW_ODD)
 
         # Double-click a row to open that patient's dashboard.
         self.tree.bind('<Double-1>', self._on_row_double_click)
@@ -85,18 +80,15 @@ class PatientListView(tk.Frame):
         self.empty_label = tk.Label(
             tree_frame,
             text="No patients found.\nUse 'Add Patient' to create one.",
-            font=('Arial', 12),
-            fg='gray',
-            justify='center',
+            font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED, justify='center',
         )
 
     def _load_patients(self):
         """Fetch all patients from the database and populate the Treeview."""
-        # Remove any previously displayed rows before reloading.
-        for row in self.tree.get_children():
-            self.tree.delete(row)
+        # Clear all existing rows in one call before reloading.
+        self.tree.delete(*self.tree.get_children())
 
-        patients = get_all_patients(self.app.conn)
+        patients = Patient.get_all(self.app.conn)
 
         if not patients:
             # Show the empty-state message centred over the tree.
@@ -106,36 +98,42 @@ class PatientListView(tk.Frame):
         # Hide the empty-state label now that we have rows.
         self.empty_label.place_forget()
 
-        for patient in patients:
+        for index, patient in enumerate(patients):
             cycles = get_cycles_by_patient(self.app.conn, patient.id)
             if cycles:
-                # get_cycles_by_patient returns cycles ordered by cycle_number.
-                latest = cycles[-1]
-                current_cycle = f"Cycle {latest.cycle_number} / {patient.total_cycles or '?'}"
-                status = (latest.status or '-').capitalize()
+                # Count completed cycles — e.g. "2/8" means 2 of 8 cycles done.
+                completed = sum(1 for c in cycles if c.status == 'completed')
+                current_cycle = f"{completed}/{patient.total_cycles or '?'}"
             else:
-                current_cycle = 'No cycles'
-                status = '-'
+                current_cycle = '-'
 
-            # iid is the row identifier — storing patient.id lets us retrieve it on click.
-            self.tree.insert('', 'end', iid=str(patient.id), values=(
-                patient.patient_id,
-                patient.name,
-                current_cycle,
-                status,
-            ))
+            # 'even'/'odd' drives the alternating stripe; patient.id enables tag-based id lookup.
+            stripe = 'even' if index % 2 == 0 else 'odd'
+            self.tree.insert('', 'end', iid=str(patient.id),
+                             tags=(str(patient.id), stripe),
+                             values=(
+                                 patient.patient_id,
+                                 patient.name,
+                                 current_cycle,
+                                 patient.protocol or '-',
+                             ))
 
     def _on_row_double_click(self, event):
         """Handle double-click on a Treeview row — navigate to that patient's dashboard."""
         selected = self.tree.selection()
-        if selected:
-            # iid was set to str(patient.id) on insert.
-            patient_db_id = int(selected[0])
-            self._open_patient(patient_id=patient_db_id)
+        if not selected:
+            return
+        # Extract the patient DB id from the row's tags (set during insert).
+        patient_db_id = int(self.tree.item(selected[0])['tags'][0])
+        self._open_patient(patient_id=patient_db_id)
 
     def _on_add_patient(self):
         """Open the Add Patient form. Form dialog implemented on Day 6."""
         show_info("Coming Soon", "Add Patient form will be available on Day 6.")
+
+    def refresh(self):
+        """Reload the patient list from the database. Called after adding or editing a patient."""
+        self._load_patients()
 
     def _open_patient(self, patient_id: int):
         """Navigate to the dashboard for the given patient."""

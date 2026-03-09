@@ -7,7 +7,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from database import get_connection, create_tables
-from utils import show_error
+from utils import show_error, apply_dark_theme
 
 
 class App(tk.Tk):
@@ -32,6 +32,8 @@ class App(tk.Tk):
         self._init_navigation()
 
     def _setup_window(self):
+        self.configure(bg='#1e1e1e')
+        apply_dark_theme(tk.ttk.Style(self))
         # Set the text shown in the OS title bar.
         self.title(self.TITLE)
 

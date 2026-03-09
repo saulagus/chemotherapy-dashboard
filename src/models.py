@@ -20,6 +20,11 @@ class Patient:
     total_cycles: Optional[int] = 8       # AC-T is always 8 cycles (4 AC + 4 T).
     id: Optional[int] = None             # Auto-assigned by the database after insert.
 
+    @classmethod
+    def get_all(cls, conn) -> List['Patient']:
+        """Return all patients ordered by name."""
+        return get_all_patients(conn)
+
 
 @dataclass
 class Cycle:
