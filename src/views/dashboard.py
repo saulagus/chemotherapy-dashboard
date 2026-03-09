@@ -12,23 +12,34 @@ class DashboardView(tk.Frame):
         self._build_ui()
 
     def _build_ui(self):
-        # Header bar: title on the left, Back button on the right.
-        header = tk.Frame(self, pady=10, padx=16)
+        # Header bar: matches the patient list header style.
+        header = tk.Frame(self, bg='#1e1e1e', pady=10, padx=16)
         header.pack(fill='x')
 
         tk.Label(
             header,
             text="Patient Dashboard",
-            font=('Arial', 20, 'bold'),
+            font=('Arial', 13),
+            bg='#1e1e1e',
+            fg='#f0f0f0',
         ).pack(side='left')
 
-        tk.Button(
+        # Label styled as a button — avoids macOS system gray on tk.Button.
+        back_btn = tk.Label(
             header,
-            text="<- Back to Patient List",
-            command=self._go_back,
-        ).pack(side='right')
+            text="<- Back",
+            font=('Arial', 11),
+            bg='#1e1e1e',
+            fg='#f0f0f0',
+            cursor='hand2',
+            padx=8,
+            pady=4,
+        )
+        back_btn.pack(side='right')
+        back_btn.bind('<Button-1>', lambda e: self._go_back())
 
-        ttk.Separator(self, orient='horizontal').pack(fill='x', padx=16)
+        # Thin separator line below the header.
+        tk.Frame(self, bg='#333333', height=1).pack(fill='x')
 
         # Patient info area — populated with real data on Day 7.
         self.patient_frame = tk.Frame(self, padx=16, pady=12)

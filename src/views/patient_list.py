@@ -14,28 +14,40 @@ class PatientListView(tk.Frame):
         self._load_patients()
 
     def _build_ui(self):
-        # Header bar: app title on the left.
-        header = tk.Frame(self, pady=10, padx=16)
+        # Header bar: dark background, title left, button right.
+        header = tk.Frame(self, bg='#1e1e1e', pady=10, padx=16)
         header.pack(fill='x')
 
         tk.Label(
             header,
             text="AC-T Chemotherapy Dashboard",
-            font=('Arial', 20, 'bold'),
+            font=('Arial', 13),
+            bg='#1e1e1e',
+            fg='#f0f0f0',
         ).pack(side='left')
 
-        # Add Patient button — opens the form dialog (implemented on Day 6).
-        tk.Button(
+        # Label styled as a button — avoids macOS system gray on tk.Button.
+        add_btn = tk.Label(
             header,
             text="+ Add Patient",
-            command=self._on_add_patient,
-        ).pack(side='right', padx=(0, 8))
+            font=('Arial', 11),
+            bg='#1e1e1e',
+            fg='#f0f0f0',
+            cursor='hand2',
+            padx=8,
+            pady=4,
+        )
+        add_btn.pack(side='right')
+        add_btn.bind('<Button-1>', lambda e: self._on_add_patient())
+
+        # Thin separator line below the header.
+        tk.Frame(self, bg='#333333', height=1).pack(fill='x')
 
         # Section label above the list.
         content = tk.Frame(self, padx=16, pady=8)
         content.pack(fill='both', expand=True)
 
-        tk.Label(content, text="Patients", font=('Arial', 14)).pack(anchor='w', pady=(0, 8))
+        tk.Label(content, text="Patients", font=('Arial', 11), fg='#555555').pack(anchor='w', pady=(0, 8))
 
         # Treeview + vertical scrollbar in a shared frame.
         tree_frame = tk.Frame(content)
