@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-03-09 — Sprint 1 Day 5
+
+### Completed
+- Implemented `patient_list.py` with full Treeview (columns: Patient ID, Name, Current Cycle, Protocol)
+- Cycle column shows completed count — e.g. `2/8` means 2 of 8 cycles done
+- Patient DB id stored in both `iid` and row `tags` for reliable retrieval on click
+- Added `+ Add Patient` label-button in header (placeholder — form in Day 6)
+- Double-click row extracts patient id from tags, navigates to `DashboardView`
+- Added `refresh()` public method — clears and reloads Treeview in one call
+- Added `Patient.get_all(conn)` classmethod to `models.py`
+- Applied full dark theme via `apply_dark_theme()` in `utils/__init__.py` — palette constants shared across all views
+- Alternating row stripe colours (`#252525` / `#2a2a2a`), row height 32px, Arial 11 font
+- Updated `DashboardView` with `set_patient(patient_id)` — updates header title and patient label
+- Added `scripts/add_test_patients.py` for quick manual data insertion
+- Tested complete flow with 0, 1, and 5 patients — all navigation checks passed
+- 32/32 tests green throughout
+
+### Decisions
+- Completed cycle count used for Current Cycle column (not latest cycle number) — more clinically meaningful
+- `BG_ROW_ODD` added to palette for alternating stripes without hardcoding colours in the view
+- `set_patient()` separated from `__init__` so dashboard can be updated without full reconstruction
+- Label-buttons used instead of `tk.Button` to avoid macOS system gray overriding dark header
+
+### Blockers
+- None
+
+### Next
+- Day 6: Add Patient form (ID, name, start date, protocol, validation, duplicate check, save/cancel, refresh list)
+- Day 7: Patient selection, pass patient_id to dashboard, display patient name in header, test full List→Dashboard→Back flow
+- Day 8: Verify auto-save, test persistence across restarts, handle DB errors, cycle/lab CRUD + tests
+- Day 9: generate_test_data.py — 5 synthetic patients, varied cycles/labs, CLI flag --patients N
+- Day 10: Sprint 1 review — bug fixes, self-demo against acceptance criteria, retrospective, tag v0.1-m1
+
+---
+
 ## 2026-03-08 — Sprint 1 Phase 4
 
 ### Completed
