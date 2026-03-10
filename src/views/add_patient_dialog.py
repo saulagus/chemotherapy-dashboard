@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from utils import show_error, show_info, BG, SEPARATOR, FG, FG_MUTED
+from utils import BG, SEPARATOR, FG, FG_MUTED
 
 
 class AddPatientDialog(tk.Toplevel):
@@ -28,7 +28,7 @@ class AddPatientDialog(tk.Toplevel):
         self.update_idletasks()
         pw = parent.winfo_rootx()
         py = parent.winfo_rooty()
-        w, h = 420, 380
+        w, h = 420, 420
         x = pw + (parent.winfo_width()  - w) // 2
         y = py + (parent.winfo_height() - h) // 2
         self.geometry(f"{w}x{h}+{x}+{y}")
@@ -94,6 +94,13 @@ class AddPatientDialog(tk.Toplevel):
 
             widget.grid(row=row_idx, column=1, sticky='ew', pady=6)
 
+        # ── Inline error label ─────────────────────────────────────────────────
+        self._error_label = tk.Label(form, text='', font=('Arial', 10),
+                                     bg=BG, fg='#e05555',
+                                     justify='left', wraplength=360, anchor='w')
+        self._error_label.grid(row=len(rows), column=0, columnspan=2,
+                               sticky='w', pady=(8, 0))
+
         # ── Buttons ────────────────────────────────────────────────────────────
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
@@ -116,6 +123,12 @@ class AddPatientDialog(tk.Toplevel):
         if not widget.get():
             widget.insert(0, hint)
             widget.config(fg=FG_MUTED)
+
+    def _show_error(self, message):
+        self._error_label.config(text=message)
+
+    def _clear_error(self):
+        self._error_label.config(text='')
 
     # ── Validation ────────────────────────────────────────────────────────────
 
@@ -179,9 +192,10 @@ class AddPatientDialog(tk.Toplevel):
         from datetime import date
         from models import Patient, add_patient
 
+        self._clear_error()
         errors = self.validate_inputs()
         if errors:
-            show_error("Validation Error", "\n".join(errors))
+            self._show_error("\n".join(f"• {e}" for e in errors))
             return
 
         patient_id = self._get('patient_id')
@@ -203,13 +217,12 @@ class AddPatientDialog(tk.Toplevel):
             ))
         except Exception as e:
             if 'UNIQUE' in str(e):
-                show_error("Duplicate ID", f"Patient ID '{patient_id}' already exists.")
+                self._show_error(f"• Patient ID '{patient_id}' already exists.")
             else:
-                show_error("Save Error", str(e))
+                self._show_error(f"• Save failed: {e}")
             return
 
         self.result = new_patient
-        show_info("Patient Added", f"{name} has been added successfully.")
         self.destroy()
 
     def _on_cancel(self):
