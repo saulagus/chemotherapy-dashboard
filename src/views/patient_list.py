@@ -48,7 +48,7 @@ class PatientListView(tk.Frame):
 
         self.tree = ttk.Treeview(
             tree_frame,
-            columns=('id', 'name', 'current_cycle', 'protocol'),
+            columns=('id', 'name', 'current_cycle', 'protocol', 'age', 'diagnosis_date'),
             show='headings',
             height=20,            # visible rows before scrolling kicks in
             yscrollcommand=scrollbar.set,
@@ -56,16 +56,20 @@ class PatientListView(tk.Frame):
         scrollbar.config(command=self.tree.yview)
 
         # Column headings.
-        self.tree.heading('id',            text='Patient ID')
-        self.tree.heading('name',          text='Name')
-        self.tree.heading('current_cycle', text='Current Cycle')
-        self.tree.heading('protocol',      text='Protocol')
+        self.tree.heading('id',             text='Patient ID')
+        self.tree.heading('name',           text='Name')
+        self.tree.heading('current_cycle',  text='Current Cycle')
+        self.tree.heading('protocol',       text='Protocol')
+        self.tree.heading('age',            text='Age')
+        self.tree.heading('diagnosis_date', text='Diagnosis Date')
 
         # Column widths and alignment.
-        self.tree.column('id',            width=130, anchor='center', stretch=False)
-        self.tree.column('name',          width=200, anchor='w')
-        self.tree.column('current_cycle', width=140, anchor='center', stretch=False)
-        self.tree.column('protocol',      width=200, anchor='center', stretch=False)
+        self.tree.column('id',             width=130, anchor='center', stretch=False)
+        self.tree.column('name',           width=200, anchor='w')
+        self.tree.column('current_cycle',  width=140, anchor='center', stretch=False)
+        self.tree.column('protocol',       width=200, anchor='center', stretch=False)
+        self.tree.column('age',            width=80,  anchor='center', stretch=False)
+        self.tree.column('diagnosis_date', width=140, anchor='center', stretch=False)
 
         self.tree.pack(fill='both', expand=True)
 
@@ -116,6 +120,8 @@ class PatientListView(tk.Frame):
                                  patient.name,
                                  current_cycle,
                                  patient.protocol or '-',
+                                 patient.age if patient.age is not None else '-',
+                                 str(patient.diagnosis_date) if patient.diagnosis_date else '-',
                              ))
 
     def _on_row_double_click(self, event):
@@ -128,8 +134,12 @@ class PatientListView(tk.Frame):
         self._open_patient(patient_id=patient_db_id)
 
     def _on_add_patient(self):
-        """Open the Add Patient form. Form dialog implemented on Day 6."""
-        show_info("Coming Soon", "Add Patient form will be available on Day 6.")
+        """Open the Add Patient dialog and refresh the list if a patient was saved."""
+        from views.add_patient_dialog import AddPatientDialog
+        dialog = AddPatientDialog(self.winfo_toplevel(), self.app)
+        self.wait_window(dialog)
+        if dialog.result:
+            self.refresh()
 
     def refresh(self):
         """Reload the patient list from the database. Called after adding or editing a patient."""
