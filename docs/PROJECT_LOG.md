@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-03-11 — Sprint 1 Day 7
+
+### Completed
+- Rebuilt `DashboardView` with real patient data — `set_patient()` loads full `Patient` object via `get_patient_by_db_id()`
+- Added `get_patient_by_db_id(conn, db_id)` to `models.py` for lookup by integer primary key
+- Patient header card displays: name (bold 20pt), ID · Protocol · Start Date in muted detail row
+- `refresh()` method updates all header labels; handles no-patient state gracefully
+- Added Treatment Timeline placeholder (left, 3/4 width) — "Coming in Sprint 2"
+- Added Latest Labs placeholder (right, 1/4 width) — "Coming in Sprint 3"
+- Dashboard layout: nav bar → patient header card → two-column content area
+- Verified auto-save (US-020): added patient, force-quit, reopened — patient persisted
+- `conn.commit()` in `add_patient()` documented as immediate disk write — no save button needed
+- Added `- Remove Patient` button to patient list header (red, confirmation dialog, auto-refresh)
+
+### Decisions
+- `get_patient_by_db_id()` added alongside existing `get_patient_by_id()` (string) — both needed for different call sites
+- `BG_ALT` used for header card and placeholder frames — consistent with Treeview row styling
+- Timeline and labs placeholders use `grid()` with column weights (3:1) for proportional layout
+
+### Blockers
+- None
+
+### Next
+- Day 8: Synthetic data generator (`generate_test_data.py`) — 5 patients, varied cycles/labs, CLI flag `--patients N`
+- Day 9: Sprint 1 review — bug fixes, self-demo against acceptance criteria, retrospective, tag `v0.1-m1`
+
+---
+
 ## 2026-03-09 — Sprint 1 Day 5
 
 ### Completed

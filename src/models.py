@@ -70,9 +70,10 @@ def add_patient(conn, patient: Patient) -> Patient:
          patient.diagnosis_date, patient.start_date,
          patient.protocol, patient.total_cycles)
     )
+    # conn.commit() writes immediately to disk — SQLite auto-save (US-020).
+    # No separate "Save" button is needed; data persists even if the app is force-quit.
     conn.commit()
     patient.id = cursor.lastrowid  # Auto-generated integer ID assigned by the database.
-    # Returns the same Patient object with id now set, ready to link cycles or labs.
     return patient
 
 
