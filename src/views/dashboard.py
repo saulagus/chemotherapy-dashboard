@@ -88,6 +88,19 @@ class DashboardView(tk.Frame):
                  font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED,
                  justify='center').place(relx=0.5, rely=0.5, anchor='center')
 
+        # ── Labs placeholder ───────────────────────────────────────────────────
+        labs_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
+        labs_frame.grid(row=0, column=1, sticky='nsew')
+
+        tk.Label(labs_frame, text="Latest Labs",
+                 font=('Arial', 11, 'bold'), bg=BG_ALT, fg=FG,
+                 anchor='w').pack(anchor='w')
+        tk.Frame(labs_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
+        tk.Label(labs_frame,
+                 text="Latest Labs\n(Coming in Sprint 3)",
+                 font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED,
+                 justify='center').place(relx=0.5, rely=0.5, anchor='center')
+
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
         self.patient_id = patient_id
