@@ -69,13 +69,24 @@ class DashboardView(tk.Frame):
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
         # ── Main content area ──────────────────────────────────────────────────
-        content = tk.Frame(self, bg=BG, padx=16, pady=8)
+        content = tk.Frame(self, bg=BG, padx=16, pady=16)
         content.pack(fill='both', expand=True)
+        content.columnconfigure(0, weight=3)
+        content.columnconfigure(1, weight=1)
+        content.rowconfigure(0, weight=1)
 
-        tk.Label(content,
-                 text="Treatment cycles and lab results will appear here.",
-                 font=('Arial', 12), bg=BG, fg=FG_MUTED,
-                 ).place(relx=0.5, rely=0.5, anchor='center')
+        # ── Timeline placeholder ───────────────────────────────────────────────
+        timeline_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
+        timeline_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
+
+        tk.Label(timeline_frame, text="Treatment Timeline",
+                 font=('Arial', 11, 'bold'), bg=BG_ALT, fg=FG,
+                 anchor='w').pack(anchor='w')
+        tk.Frame(timeline_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
+        tk.Label(timeline_frame,
+                 text="Treatment Timeline\n(Coming in Sprint 2)",
+                 font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED,
+                 justify='center').place(relx=0.5, rely=0.5, anchor='center')
 
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
