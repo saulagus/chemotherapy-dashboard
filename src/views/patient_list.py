@@ -1,6 +1,6 @@
 import tkinter as tk
-from tkinter import ttk
-from models import Patient, get_cycles_by_patient
+from tkinter import ttk, messagebox
+from models import Patient, get_cycles_by_patient, delete_patient
 from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED
 
 
@@ -28,6 +28,12 @@ class PatientListView(tk.Frame):
                            cursor='hand2', padx=8, pady=4)
         add_btn.pack(side='right')
         add_btn.bind('<Button-1>', lambda e: self._on_add_patient())
+
+        remove_btn = tk.Label(header, text="- Remove Patient",
+                              font=('Arial', 11), bg=BG, fg='#e05555',
+                              cursor='hand2', padx=8, pady=4)
+        remove_btn.pack(side='right')
+        remove_btn.bind('<Button-1>', lambda e: self._on_remove_patient())
 
         # Thin separator line below the header.
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -132,6 +138,22 @@ class PatientListView(tk.Frame):
         # Extract the patient DB id from the row's tags (set during insert).
         patient_db_id = int(self.tree.item(selected[0])['tags'][0])
         self._open_patient(patient_id=patient_db_id)
+
+    def _on_remove_patient(self):
+        """Delete the selected patient after confirmation."""
+        selected = self.tree.selection()
+        if not selected:
+            return
+        patient_db_id = int(self.tree.item(selected[0])['tags'][0])
+        patient_id_str = self.tree.item(selected[0])['values'][0]
+        name = self.tree.item(selected[0])['values'][1]
+        confirmed = messagebox.askyesno(
+            "Remove Patient",
+            f"Remove {name} ({patient_id_str})?\nThis cannot be undone.",
+        )
+        if confirmed:
+            delete_patient(self.app.conn, patient_id_str)
+            self.refresh()
 
     def _on_add_patient(self):
         """Open the Add Patient dialog and refresh the list if a patient was saved."""

@@ -110,6 +110,22 @@ def get_patient_by_id(conn, patient_id: str) -> Optional[Patient]:
                    protocol=row[6], total_cycles=row[7])
 
 
+def get_patient_by_db_id(conn, db_id: int) -> Optional[Patient]:
+    """Return a patient by their integer primary key, or None if not found."""
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT id, patient_id, name, age, diagnosis_date, start_date, protocol, total_cycles '
+        'FROM patients WHERE id = ?',
+        (db_id,)
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return Patient(id=row[0], patient_id=row[1], name=row[2], age=row[3],
+                   diagnosis_date=row[4], start_date=row[5],
+                   protocol=row[6], total_cycles=row[7])
+
+
 def update_patient(conn, patient: Patient) -> None:
     """Update all fields of an existing patient (matched by DB id)."""
     cursor = conn.cursor()
