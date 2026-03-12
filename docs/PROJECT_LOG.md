@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-03-12 — Sprint 1 Day 8
+
+### Completed
+- Created `generate_test_data.py` in project root (US-021)
+- Generates 5 synthetic patients with realistic initials, protocol, age, start date, diagnosis date
+- 5 fixed progression profiles: early (0-2 cycles), mid (3-5), late (6-7), complete (8), dose-modified
+- Lab values generated per completed cycle — ANC trends downward over treatment (myelosuppression simulation)
+- WBC, platelets, hemoglobin also generated with gentle decline
+- `clear_all_data()` deletes labs → cycles → patients in correct FK order
+- CLI interface: `--patients N` and `--clear` flags via argparse
+- Added Developer menu to macOS menu bar (US-022) — Generate Test Data and Clear All Data items
+- Both menu actions show confirmation dialogs and auto-refresh patient list on completion
+
+### Decisions
+- Patient IDs fixed as `TEST-001`…`TEST-00N` — predictable, run `--clear` between generations
+- Generator lives in project root (not `src/`) — adds `src/` to `sys.path` for model imports
+- In-app access via macOS menu bar rather than UI button — keeps main interface clean
+
+### Blockers
+- None
+
+### Next
+- Day 9: Sprint 1 review — integration testing, bug fixes, self-demo against acceptance criteria
+- Day 10: Retrospective, tag `v0.1-m1`, push to GitHub
+
+---
+
 ## 2026-03-11 — Sprint 1 Day 7
 
 ### Completed

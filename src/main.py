@@ -47,7 +47,52 @@ class App(tk.Tk):
         # window's close button (the X). By default it just destroys the
         # window without cleanup. We override it to close the DB connection first.
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._init_dev_menu()
         # Returns nothing. The window properties are now set and ready.
+
+    def _init_dev_menu(self):
+        """Add a Developer menu to the macOS menu bar."""
+        menubar = tk.Menu(self)
+        dev_menu = tk.Menu(menubar, tearoff=0)
+        dev_menu.add_command(label="Generate Test Data", command=self._dev_generate)
+        dev_menu.add_command(label="Clear All Data",     command=self._dev_clear)
+        menubar.add_cascade(label="Developer", menu=dev_menu)
+        self.config(menu=menubar)
+
+    def _dev_generate(self):
+        from tkinter import messagebox
+        if not messagebox.askyesno("Generate Test Data",
+                                   "Generate 5 synthetic patients?\n"
+                                   "Existing data will not be removed."):
+            return
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+        from generate_test_data import generate_patients, generate_cycles, generate_labs
+        patients = generate_patients(self.conn, 5)
+        for i, patient in enumerate(patients):
+            cycles = generate_cycles(self.conn, patient, profile_index=i)
+            generate_labs(self.conn, patient, cycles)
+        self._refresh_patient_list()
+        messagebox.showinfo("Done", "5 test patients generated.")
+
+    def _dev_clear(self):
+        from tkinter import messagebox
+        if not messagebox.askyesno("Clear All Data",
+                                   "Delete ALL patients, cycles, and labs?\n"
+                                   "This cannot be undone."):
+            return
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+        from generate_test_data import clear_all_data
+        clear_all_data(self.conn)
+        self._refresh_patient_list()
+        messagebox.showinfo("Done", "All data cleared.")
+
+    def _refresh_patient_list(self):
+        """Refresh the patient list view if it is currently instantiated."""
+        from views.patient_list import PatientListView
+        if PatientListView in self.frames:
+            self.frames[PatientListView].refresh()
 
     def _init_database(self):
         # Wrap database setup in a try/except so any failure shows a clear
