@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-03-15 — Sprint 2 Day 11
+
+### Completed
+- Created `src/views/components/` directory with `__init__.py`
+- Built `TimelineComponent` class in `src/views/components/timeline.py`
+- 8 cycle boxes displaying in two phase groups: AC (1-4) and T (5-8)
+- Status-based colour scheme defined: pending (gray), current (blue), completed (green), modified (orange — Day 13)
+- Phase accent colours defined for AC (blue) and T (purple)
+- `_get_cycle_state()` determines visual state per cycle
+- `_on_cycle_click()` placeholder bound to all cycle boxes — dialog wired on Day 13
+- `cursor='hand2'` on all cycle boxes signals clickability
+- `load_patient()` and `refresh()` as public API
+- Integrated `TimelineComponent` into `DashboardView` — replaces Sprint 1 placeholder
+- Verified 8 cycles display correctly with correct state colours
+
+### Decisions
+- Frame-based timeline chosen over Canvas — simpler event binding, easier widget composition
+- `_rebuild_timeline()` destroys and recreates all boxes on refresh — simpler than diffing state
+- `cycle_map` dict (cycle_number → Cycle) used for O(1) lookup during box creation
+- `pack_propagate(False)` on each box enforces fixed 80×80 size regardless of content
+
+### Technical Debt
+- `COLORS['ac_phase']` and `COLORS['t_phase']` defined but not yet applied to phase labels — Day 12
+- `_on_cycle_click()` is a placeholder — completion dialog wired on Day 13
+
+### Next
+- Day 12: Apply phase accent colours to labels, style completed/current/pending states fully, timeline refresh logic
+
+---
+
 ## 2026-03-12 — Sprint 1 Day 8
 
 ### Completed

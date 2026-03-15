@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import ttk
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import get_cycles_by_patient, Cycle
 
