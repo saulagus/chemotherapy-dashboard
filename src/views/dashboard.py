@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import Patient, get_patient_by_db_id, get_cycles_by_patient, get_labs_by_patient
+from views.components.timeline import TimelineComponent
 
 
 class DashboardView(tk.Frame):
@@ -75,7 +76,7 @@ class DashboardView(tk.Frame):
         content.columnconfigure(1, weight=1)
         content.rowconfigure(0, weight=1)
 
-        # ── Timeline placeholder ───────────────────────────────────────────────
+        # ── Timeline component ─────────────────────────────────────────────────
         timeline_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
         timeline_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
 
@@ -83,10 +84,9 @@ class DashboardView(tk.Frame):
                  font=('Arial', 11, 'bold'), bg=BG_ALT, fg=FG,
                  anchor='w').pack(anchor='w')
         tk.Frame(timeline_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
-        tk.Label(timeline_frame,
-                 text="Treatment Timeline\n(Coming in Sprint 2)",
-                 font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED,
-                 justify='center').place(relx=0.5, rely=0.5, anchor='center')
+
+        self.timeline = TimelineComponent(timeline_frame, self.app)
+        self.timeline.pack(anchor='w', pady=(0, 8))
 
         # ── Labs placeholder ───────────────────────────────────────────────────
         labs_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
@@ -105,6 +105,8 @@ class DashboardView(tk.Frame):
         """Load patient from DB, store in self.patient, then refresh display."""
         self.patient_id = patient_id
         self.patient = get_patient_by_db_id(self.app.conn, patient_id) if patient_id else None
+        if patient_id:
+            self.timeline.load_patient(patient_id)
         self.refresh()
 
     def refresh(self):
