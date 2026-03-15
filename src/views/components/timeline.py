@@ -3,6 +3,32 @@ from tkinter import ttk
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import get_cycles_by_patient, Cycle
 
+# ---------------------------------------------------------------------------
+# Colour scheme for cycle states and phases
+# ---------------------------------------------------------------------------
+
+COLORS = {
+    # Pending cycle — neutral dark box
+    'pending_bg':     '#2e2e2e',
+    'pending_fg':     '#888888',
+
+    # Current cycle — blue highlight border
+    'current_bg':     '#1e3a5f',
+    'current_fg':     '#a8d0f0',
+    'current_border': '#2196F3',
+
+    # Completed cycle — green
+    'completed_bg':   '#1e4d2e',
+    'completed_fg':   '#81c784',
+
+    # Dose modification warning — orange overlay text
+    'modified_fg':    '#FF9800',
+
+    # Phase accent colours (used for phase labels and borders)
+    'ac_phase':       '#3498DB',   # Blue
+    't_phase':        '#9B59B6',   # Purple
+}
+
 
 class TimelineComponent(tk.Frame):
     """Visual 8-cycle treatment timeline for a single patient.
@@ -116,26 +142,71 @@ class TimelineComponent(tk.Frame):
 
         return group
 
+    def _get_cycle_state(self, cycle: Cycle | None, cycle_number: int) -> str:
+        """Return the visual state for a cycle: 'pending', 'current', or 'completed'."""
+        if cycle is None or cycle.status != 'completed':
+            completed_count = sum(1 for c in self.cycles if c.status == 'completed')
+            current_number  = completed_count + 1
+            if cycle_number == current_number:
+                return 'current'
+            return 'pending'
+        return 'completed'
+
     def _create_cycle_box(
         self,
         parent: tk.Widget,
         cycle_number: int,
         cycle: Cycle | None,
     ) -> tk.Frame:
-        """Create a single cycle box frame with number label and status indicator.
+        """Create a single styled cycle box (~80x80).
 
-        Styling and click behaviour are added in later days (Day 12-13).
-        For now the box shows the cycle number on a neutral background.
+        Visual state (pending / current / completed) drives background and text colours.
+        Dose modification indicator and click binding are added on Day 13+.
         """
-        box = tk.Frame(parent, width=72, height=72, bg=BG_ALT,
-                       relief='flat', bd=1)
-        box.pack_propagate(False)  # Keep fixed size regardless of content.
+        state = self._get_cycle_state(cycle, cycle_number)
 
-        # Cycle number.
+        # Pick colours based on state.
+        if state == 'completed':
+            bg, fg = COLORS['completed_bg'], COLORS['completed_fg']
+            status_text = 'Done'
+        elif state == 'current':
+            bg, fg = COLORS['current_bg'], COLORS['current_fg']
+            status_text = 'Current'
+        else:
+            bg, fg = COLORS['pending_bg'], COLORS['pending_fg']
+            status_text = 'Pending'
+
+        # Highlighted border for current cycle.
+        highlight = COLORS['current_border'] if state == 'current' else SEPARATOR
+
+        box = tk.Frame(parent, width=80, height=80, bg=bg,
+                       highlightbackground=highlight, highlightthickness=2)
+        box.pack_propagate(False)
+
+        # Phase indicator — small label at top.
+        phase_text = 'AC' if cycle_number <= 4 else 'T'
+        tk.Label(box, text=phase_text,
+                 font=('Arial', 8), bg=bg, fg=fg).pack(pady=(4, 0))
+
+        # Cycle number — prominent centre.
         tk.Label(box, text=str(cycle_number),
-                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG).pack(expand=True)
+                 font=('Arial', 16, 'bold'), bg=bg, fg=fg).pack()
+
+        # Status indicator at bottom.
+        tk.Label(box, text=status_text,
+                 font=('Arial', 7), bg=bg, fg=fg).pack(pady=(0, 4))
+
+        # Bind click on box and all child labels so the whole box is clickable.
+        for widget in (box, *box.winfo_children()):
+            widget.bind('<Button-1>', lambda e, c=cycle, n=cycle_number: self._on_cycle_click(c, n))
+            widget.configure(cursor='hand2')
 
         return box
+
+    def _on_cycle_click(self, cycle: Cycle | None, cycle_number: int) -> None:
+        """Handle a click on a cycle box. Full dialog opens on Day 13."""
+        # Placeholder — completion dialog wired up in Day 13.
+        pass
 
     def _update_status_label(self, cycle_map: dict) -> None:
         """Set the status text above the timeline based on cycle progress."""
