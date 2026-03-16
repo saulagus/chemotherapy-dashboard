@@ -25,7 +25,7 @@ COLORS = {
     'current_bg':     '#1a3a5c',   # Dark navy — stands out without breaking dark theme
     'current_fg':     '#90caf9',   # Soft blue text
     'current_border': '#3b82f6',   # Bright blue border
-    'completed_bg':   '#4CAF50',   # Green
+    'completed_bg':   '#388E3C',   # Darker green — white text contrast 4.0:1 (WCAG AA)
     'completed_fg':   '#FFFFFF',   # White text
     'ac_phase':       '#3498DB',   # Blue accent
     't_phase':        '#9B59B6',   # Purple accent
@@ -131,7 +131,10 @@ class TimelineComponent(tk.Frame):
 
         # AC phase group (cycles 1-4).
         ac_group = self._build_phase_group(self.cycles_frame, cycle_map, range(1, 5), 'AC')
-        ac_group.pack(side='left', padx=(0, 28))
+        ac_group.pack(side='left', padx=(0, 20))
+
+        # Vertical separator between phases.
+        tk.Frame(self.cycles_frame, width=2, bg=SEPARATOR).pack(side='left', fill='y', padx=20)
 
         # T phase group (cycles 5-8).
         t_group = self._build_phase_group(self.cycles_frame, cycle_map, range(5, 9), 'T')
@@ -159,15 +162,25 @@ class TimelineComponent(tk.Frame):
             box.pack(side='left', padx=4)
             self._cycle_frames.append(box)
 
-        # Phase label below the boxes — coloured by phase.
+        # Phase label + drug name below the boxes — coloured by phase.
         phase_color = COLORS['ac_phase'] if phase_name == 'AC' else COLORS['t_phase']
+        drug_name   = 'Adriamycin + Cyclophosphamide' if phase_name == 'AC' else 'Taxol (Paclitaxel)'
+
         tk.Label(
             group,
             text=f"{phase_name} Phase",
-            font=('Arial', 15),
+            font=('Arial', 16, 'bold'),
             bg=_BG,
             fg=phase_color,
         ).pack(pady=(10, 0))
+
+        tk.Label(
+            group,
+            text=drug_name,
+            font=('Arial', 13),
+            bg=_BG,
+            fg=FG,
+        ).pack(pady=(3, 0))
 
         return group
 
@@ -227,10 +240,12 @@ class TimelineComponent(tk.Frame):
                        highlightbackground=highlight, highlightthickness=border_thickness)
         box.pack_propagate(False)
 
-        # Phase indicator — small label at top.
-        phase_text = 'AC' if cycle_number <= 4 else 'T'
+        # Phase accent — 4px colored strip at top + phase label in box fg color.
+        phase_text   = 'AC' if cycle_number <= 4 else 'T'
+        phase_color  = COLORS['ac_phase'] if cycle_number <= 4 else COLORS['t_phase']
+        tk.Frame(box, height=4, bg=phase_color).pack(fill='x')
         tk.Label(box, text=phase_text,
-                 font=('Arial', 11), bg=bg, fg=fg).pack(pady=(6, 0))
+                 font=('Arial', 11, 'bold'), bg=bg, fg=fg).pack(pady=(2, 0))
 
         # Cycle number — prominent centre.
         tk.Label(box, text=str(cycle_number),
@@ -269,4 +284,7 @@ class TimelineComponent(tk.Frame):
             return
 
         phase = 'AC Phase' if self.current_cycle_number <= 4 else 'T Phase'
-        self.status_label.config(text=f"Current: Cycle {self.current_cycle_number} ({phase})")
+        transition = '  —  Starting T Phase' if self.current_cycle_number == 5 else ''
+        self.status_label.config(
+            text=f"Current: Cycle {self.current_cycle_number} ({phase}){transition}"
+        )
