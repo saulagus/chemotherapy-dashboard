@@ -20,16 +20,16 @@ class DashboardView(tk.Frame):
         self.configure(bg=BG)
 
         # ── Top nav bar ────────────────────────────────────────────────────────
-        nav = tk.Frame(self, bg=BG, pady=10, padx=16)
+        nav = tk.Frame(self, bg=BG, pady=14, padx=24)
         nav.pack(fill='x')
 
         self.title_label = tk.Label(nav, text="Patient Dashboard",
-                                    font=('Arial', 13), bg=BG, fg=FG)
+                                    font=('Arial', 17), bg=BG, fg=FG)
         self.title_label.pack(side='left')
 
         back_btn = tk.Label(nav, text="<- Back",
-                            font=('Arial', 11), bg=BG, fg=FG,
-                            cursor='hand2', padx=8, pady=4)
+                            font=('Arial', 15), bg=BG, fg=FG,
+                            cursor='hand2', padx=10, pady=4)
         back_btn.pack(side='right')
         back_btn.bind('<Button-1>', lambda e: self._go_back())
 
@@ -41,7 +41,7 @@ class DashboardView(tk.Frame):
 
         # Patient name — large and prominent.
         self.name_label = tk.Label(self.header_frame, text="",
-                                   font=('Arial', 20, 'bold'), bg=BG_ALT, fg=FG,
+                                   font=('Arial', 24, 'bold'), bg=BG_ALT, fg=FG,
                                    anchor='w')
         self.name_label.pack(anchor='w')
 
@@ -50,21 +50,21 @@ class DashboardView(tk.Frame):
         detail_row.pack(anchor='w', pady=(6, 0))
 
         self.id_label = tk.Label(detail_row, text="",
-                                 font=('Arial', 11), bg=BG_ALT, fg=FG_MUTED)
+                                 font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED)
         self.id_label.pack(side='left')
 
         tk.Label(detail_row, text="  ·  ",
-                 font=('Arial', 11), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+                 font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
 
         self.protocol_label = tk.Label(detail_row, text="",
-                                       font=('Arial', 11), bg=BG_ALT, fg=FG_MUTED)
+                                       font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED)
         self.protocol_label.pack(side='left')
 
         tk.Label(detail_row, text="  ·  ",
-                 font=('Arial', 11), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+                 font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
 
         self.start_date_label = tk.Label(detail_row, text="",
-                                         font=('Arial', 11), bg=BG_ALT, fg=FG_MUTED)
+                                         font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED)
         self.start_date_label.pack(side='left')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -81,7 +81,7 @@ class DashboardView(tk.Frame):
         timeline_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
 
         tk.Label(timeline_frame, text="Treatment Timeline",
-                 font=('Arial', 11, 'bold'), bg=BG_ALT, fg=FG,
+                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG,
                  anchor='w').pack(anchor='w')
         tk.Frame(timeline_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
 
@@ -93,12 +93,12 @@ class DashboardView(tk.Frame):
         labs_frame.grid(row=0, column=1, sticky='nsew')
 
         tk.Label(labs_frame, text="Latest Labs",
-                 font=('Arial', 11, 'bold'), bg=BG_ALT, fg=FG,
+                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG,
                  anchor='w').pack(anchor='w')
         tk.Frame(labs_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
         tk.Label(labs_frame,
                  text="Latest Labs\n(Coming in Sprint 3)",
-                 font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED,
+                 font=('Arial', 14), bg=BG_ALT, fg=FG_MUTED,
                  justify='center').place(relx=0.5, rely=0.5, anchor='center')
 
     def set_patient(self, patient_id):

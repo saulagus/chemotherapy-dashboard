@@ -1,5 +1,9 @@
 import tkinter as tk
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
+
+# Timeline component lives inside a BG_ALT panel — use BG_ALT for all internal frames
+# so there's no dark rectangle cutting into the card background.
+_BG = BG_ALT
 from models import get_cycles_by_patient, Cycle
 
 # ---------------------------------------------------------------------------
@@ -18,9 +22,11 @@ STATUS_SKIPPED   = 'skipped'
 COLORS = {
     'pending_bg':     '#E0E0E0',   # Light gray
     'pending_fg':     '#666666',   # Dark gray text
+    'current_bg':     '#1a3a5c',   # Dark navy — stands out without breaking dark theme
+    'current_fg':     '#90caf9',   # Soft blue text
+    'current_border': '#3b82f6',   # Bright blue border
     'completed_bg':   '#4CAF50',   # Green
     'completed_fg':   '#FFFFFF',   # White text
-    'current_border': '#2196F3',   # Blue border
     'ac_phase':       '#3498DB',   # Blue accent
     't_phase':        '#9B59B6',   # Purple accent
     'modified':       '#FF9800',   # Orange warning
@@ -35,10 +41,10 @@ def _add_tooltip(widget: tk.Widget, text: str) -> None:
         tip[0] = tk.Toplevel(widget)
         tip[0].wm_overrideredirect(True)
         tip[0].wm_geometry(f"+{event.x_root + 12}+{event.y_root + 8}")
-        tk.Label(tip[0], text=text, font=('Arial', 9),
+        tk.Label(tip[0], text=text, font=('Arial', 12),
                  bg='#ffffe0', fg='#333333',
                  relief='solid', borderwidth=1,
-                 padx=4, pady=2).pack()
+                 padx=8, pady=4).pack()
 
     def hide(event):
         if tip[0]:
@@ -70,7 +76,7 @@ class TimelineComponent(tk.Frame):
         self.cycles: list[Cycle] = []          # Loaded from DB in _load_cycles()
         self._cycle_frames: list[tk.Frame] = [] # References to the 8 cycle boxes
 
-        self.configure(bg=BG)
+        self.configure(bg=_BG)
         self._build_ui()
 
         if patient_id is not None:
@@ -102,12 +108,12 @@ class TimelineComponent(tk.Frame):
         """Create the static skeleton of the timeline (rebuilt on refresh)."""
         # Status text row — e.g. "Current: Cycle 3 (AC Phase)"
         self.status_label = tk.Label(
-            self, text="", font=('Arial', 11), bg=BG, fg=FG_MUTED, anchor='w'
+            self, text="", font=('Arial', 17, 'bold'), bg=_BG, fg=FG, anchor='w'
         )
-        self.status_label.pack(anchor='w', pady=(0, 12))
+        self.status_label.pack(anchor='w', pady=(0, 14))
 
         # Cycle boxes container — filled in _rebuild_timeline()
-        self.cycles_frame = tk.Frame(self, bg=BG)
+        self.cycles_frame = tk.Frame(self, bg=_BG)
         self.cycles_frame.pack(anchor='w')
 
     def _rebuild_timeline(self) -> None:
@@ -117,12 +123,15 @@ class TimelineComponent(tk.Frame):
             widget.destroy()
         self._cycle_frames.clear()
 
+        # Determine current cycle once — used by _get_cycle_state and _update_status_label.
+        self.current_cycle_number: int | None = self._compute_current_cycle_number()
+
         # Build a lookup from cycle_number → Cycle for quick access.
         cycle_map = {c.cycle_number: c for c in self.cycles}
 
         # AC phase group (cycles 1-4).
         ac_group = self._build_phase_group(self.cycles_frame, cycle_map, range(1, 5), 'AC')
-        ac_group.pack(side='left', padx=(0, 24))
+        ac_group.pack(side='left', padx=(0, 28))
 
         # T phase group (cycles 5-8).
         t_group = self._build_phase_group(self.cycles_frame, cycle_map, range(5, 9), 'T')
@@ -138,10 +147,10 @@ class TimelineComponent(tk.Frame):
         phase_name: str,
     ) -> tk.Frame:
         """Create a labelled group of cycle boxes for one phase (AC or T)."""
-        group = tk.Frame(parent, bg=BG)
+        group = tk.Frame(parent, bg=_BG)
 
         # Row of cycle boxes.
-        boxes_row = tk.Frame(group, bg=BG)
+        boxes_row = tk.Frame(group, bg=_BG)
         boxes_row.pack()
 
         for cycle_number in cycle_range:
@@ -155,19 +164,28 @@ class TimelineComponent(tk.Frame):
         tk.Label(
             group,
             text=f"{phase_name} Phase",
-            font=('Arial', 10),
-            bg=BG,
+            font=('Arial', 15),
+            bg=_BG,
             fg=phase_color,
-        ).pack(pady=(6, 0))
+        ).pack(pady=(10, 0))
 
         return group
+
+    def _compute_current_cycle_number(self) -> int | None:
+        """Return the current cycle number, or None if treatment is complete.
+
+        Current cycle = first non-completed cycle (completed_count + 1).
+        Returns None when all cycles are completed.
+        """
+        completed_count = sum(1 for c in self.cycles if c.status == 'completed')
+        if self.cycles and completed_count == len(self.cycles):
+            return None   # All cycles done — treatment complete
+        return completed_count + 1
 
     def _get_cycle_state(self, cycle: Cycle | None, cycle_number: int) -> str:
         """Return the visual state for a cycle: 'pending', 'current', or 'completed'."""
         if cycle is None or cycle.status != 'completed':
-            completed_count = sum(1 for c in self.cycles if c.status == 'completed')
-            current_number  = completed_count + 1
-            if cycle_number == current_number:
+            if cycle_number == self.current_cycle_number:
                 return 'current'
             return 'pending'
         return 'completed'
@@ -190,36 +208,39 @@ class TimelineComponent(tk.Frame):
         # Current: same colours as pending — blue border is the visual distinction.
         # Completed: green background, white text, checkmark indicator.
         if state == 'completed':
-            bg, fg       = COLORS['completed_bg'], COLORS['completed_fg']
-            status_text  = '✓'
-            highlight    = COLORS['completed_bg']
+            bg, fg            = COLORS['completed_bg'], COLORS['completed_fg']
+            status_text       = '✓'
+            highlight         = COLORS['completed_bg']
+            border_thickness  = 2
         elif state == 'current':
-            bg, fg       = COLORS['pending_bg'], COLORS['pending_fg']
-            status_text  = 'Current'
-            highlight    = COLORS['current_border']
+            bg, fg            = COLORS['current_bg'], COLORS['current_fg']
+            status_text       = 'Current'
+            highlight         = COLORS['current_border']
+            border_thickness  = 3   # Thicker border makes it stand out
         else:
-            bg, fg       = COLORS['pending_bg'], COLORS['pending_fg']
-            status_text  = 'Pending'
-            highlight    = '#BDBDBD'   # Subtle light-gray border for pending
+            bg, fg            = COLORS['pending_bg'], COLORS['pending_fg']
+            status_text       = 'Pending'
+            highlight         = '#BDBDBD'   # Subtle light-gray border for pending
+            border_thickness  = 2
 
-        box = tk.Frame(parent, width=80, height=80, bg=bg,
-                       highlightbackground=highlight, highlightthickness=2)
+        box = tk.Frame(parent, width=82, height=82, bg=bg,
+                       highlightbackground=highlight, highlightthickness=border_thickness)
         box.pack_propagate(False)
 
         # Phase indicator — small label at top.
         phase_text = 'AC' if cycle_number <= 4 else 'T'
         tk.Label(box, text=phase_text,
-                 font=('Arial', 8), bg=bg, fg=fg).pack(pady=(4, 0))
+                 font=('Arial', 11), bg=bg, fg=fg).pack(pady=(6, 0))
 
         # Cycle number — prominent centre.
         tk.Label(box, text=str(cycle_number),
-                 font=('Arial', 16, 'bold'), bg=bg, fg=fg).pack()
+                 font=('Arial', 20, 'bold'), bg=bg, fg=fg).pack()
 
         # Status indicator at bottom — checkmark for completed, text for others.
-        status_font = ('Arial', 12, 'bold') if state == 'completed' else ('Arial', 7)
+        status_font = ('Arial', 17, 'bold') if state == 'completed' else ('Arial', 12)
         status_lbl = tk.Label(box, text=status_text,
                               font=status_font, bg=bg, fg=fg)
-        status_lbl.pack(pady=(0, 4))
+        status_lbl.pack(pady=(0, 5))
 
         # Tooltip: show completed date on hover for completed cycles.
         if state == 'completed' and cycle is not None and cycle.actual_date:
@@ -239,17 +260,13 @@ class TimelineComponent(tk.Frame):
 
     def _update_status_label(self, cycle_map: dict) -> None:
         """Set the status text above the timeline based on cycle progress."""
-        completed = [c for c in self.cycles if c.status == 'completed']
-
         if not self.cycles:
             self.status_label.config(text="No cycle data available.")
             return
 
-        if len(completed) == len(self.cycles):
+        if self.current_cycle_number is None:
             self.status_label.config(text="Treatment Complete")
             return
 
-        # Current cycle = first non-completed cycle.
-        current_number = len(completed) + 1
-        phase = 'AC Phase' if current_number <= 4 else 'T Phase'
-        self.status_label.config(text=f"Current: Cycle {current_number} ({phase})")
+        phase = 'AC Phase' if self.current_cycle_number <= 4 else 'T Phase'
+        self.status_label.config(text=f"Current: Cycle {self.current_cycle_number} ({phase})")
