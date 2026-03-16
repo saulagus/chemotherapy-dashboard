@@ -3,30 +3,50 @@ from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import get_cycles_by_patient, Cycle
 
 # ---------------------------------------------------------------------------
+# Cycle status constants — match values stored in the database
+# ---------------------------------------------------------------------------
+
+STATUS_PENDING   = 'pending'
+STATUS_COMPLETED = 'completed'
+STATUS_DELAYED   = 'delayed'
+STATUS_SKIPPED   = 'skipped'
+
+# ---------------------------------------------------------------------------
 # Colour scheme for cycle states and phases
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    # Pending cycle — neutral dark box
-    'pending_bg':     '#2e2e2e',
-    'pending_fg':     '#888888',
-
-    # Current cycle — blue highlight border
-    'current_bg':     '#1e3a5f',
-    'current_fg':     '#a8d0f0',
-    'current_border': '#2196F3',
-
-    # Completed cycle — green
-    'completed_bg':   '#1e4d2e',
-    'completed_fg':   '#81c784',
-
-    # Dose modification warning — orange overlay text
-    'modified_fg':    '#FF9800',
-
-    # Phase accent colours (used for phase labels and borders)
-    'ac_phase':       '#3498DB',   # Blue
-    't_phase':        '#9B59B6',   # Purple
+    'pending_bg':     '#E0E0E0',   # Light gray
+    'pending_fg':     '#666666',   # Dark gray text
+    'completed_bg':   '#4CAF50',   # Green
+    'completed_fg':   '#FFFFFF',   # White text
+    'current_border': '#2196F3',   # Blue border
+    'ac_phase':       '#3498DB',   # Blue accent
+    't_phase':        '#9B59B6',   # Purple accent
+    'modified':       '#FF9800',   # Orange warning
 }
+
+
+def _add_tooltip(widget: tk.Widget, text: str) -> None:
+    """Attach a simple hover tooltip to a widget."""
+    tip: list[tk.Toplevel | None] = [None]
+
+    def show(event):
+        tip[0] = tk.Toplevel(widget)
+        tip[0].wm_overrideredirect(True)
+        tip[0].wm_geometry(f"+{event.x_root + 12}+{event.y_root + 8}")
+        tk.Label(tip[0], text=text, font=('Arial', 9),
+                 bg='#ffffe0', fg='#333333',
+                 relief='solid', borderwidth=1,
+                 padx=4, pady=2).pack()
+
+    def hide(event):
+        if tip[0]:
+            tip[0].destroy()
+            tip[0] = None
+
+    widget.bind('<Enter>', show)
+    widget.bind('<Leave>', hide)
 
 
 class TimelineComponent(tk.Frame):
@@ -130,13 +150,14 @@ class TimelineComponent(tk.Frame):
             box.pack(side='left', padx=4)
             self._cycle_frames.append(box)
 
-        # Phase label below the boxes.
+        # Phase label below the boxes — coloured by phase.
+        phase_color = COLORS['ac_phase'] if phase_name == 'AC' else COLORS['t_phase']
         tk.Label(
             group,
             text=f"{phase_name} Phase",
             font=('Arial', 10),
             bg=BG,
-            fg=FG_MUTED,
+            fg=phase_color,
         ).pack(pady=(6, 0))
 
         return group
@@ -164,19 +185,22 @@ class TimelineComponent(tk.Frame):
         """
         state = self._get_cycle_state(cycle, cycle_number)
 
-        # Pick colours based on state.
+        # Pick colours and labels based on state.
+        # Pending: light gray, empty appearance, subtle border.
+        # Current: same colours as pending — blue border is the visual distinction.
+        # Completed: green background, white text, checkmark indicator.
         if state == 'completed':
-            bg, fg = COLORS['completed_bg'], COLORS['completed_fg']
-            status_text = 'Done'
+            bg, fg       = COLORS['completed_bg'], COLORS['completed_fg']
+            status_text  = '✓'
+            highlight    = COLORS['completed_bg']
         elif state == 'current':
-            bg, fg = COLORS['current_bg'], COLORS['current_fg']
-            status_text = 'Current'
+            bg, fg       = COLORS['pending_bg'], COLORS['pending_fg']
+            status_text  = 'Current'
+            highlight    = COLORS['current_border']
         else:
-            bg, fg = COLORS['pending_bg'], COLORS['pending_fg']
-            status_text = 'Pending'
-
-        # Highlighted border for current cycle.
-        highlight = COLORS['current_border'] if state == 'current' else SEPARATOR
+            bg, fg       = COLORS['pending_bg'], COLORS['pending_fg']
+            status_text  = 'Pending'
+            highlight    = '#BDBDBD'   # Subtle light-gray border for pending
 
         box = tk.Frame(parent, width=80, height=80, bg=bg,
                        highlightbackground=highlight, highlightthickness=2)
@@ -191,9 +215,15 @@ class TimelineComponent(tk.Frame):
         tk.Label(box, text=str(cycle_number),
                  font=('Arial', 16, 'bold'), bg=bg, fg=fg).pack()
 
-        # Status indicator at bottom.
-        tk.Label(box, text=status_text,
-                 font=('Arial', 7), bg=bg, fg=fg).pack(pady=(0, 4))
+        # Status indicator at bottom — checkmark for completed, text for others.
+        status_font = ('Arial', 12, 'bold') if state == 'completed' else ('Arial', 7)
+        status_lbl = tk.Label(box, text=status_text,
+                              font=status_font, bg=bg, fg=fg)
+        status_lbl.pack(pady=(0, 4))
+
+        # Tooltip: show completed date on hover for completed cycles.
+        if state == 'completed' and cycle is not None and cycle.actual_date:
+            _add_tooltip(status_lbl, f"Completed {cycle.actual_date}")
 
         # Bind click on box and all child labels so the whole box is clickable.
         for widget in (box, *box.winfo_children()):
