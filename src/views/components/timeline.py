@@ -20,13 +20,16 @@ STATUS_SKIPPED   = 'skipped'
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    'pending_bg':     '#E0E0E0',   # Light gray
-    'pending_fg':     '#666666',   # Dark gray text
-    'current_bg':     '#1a3a5c',   # Dark navy — stands out without breaking dark theme
-    'current_fg':     '#90caf9',   # Soft blue text
-    'current_border': '#3b82f6',   # Bright blue border
-    'completed_bg':   '#388E3C',   # Darker green — white text contrast 4.0:1 (WCAG AA)
-    'completed_fg':   '#FFFFFF',   # White text
+    'pending_bg':        '#E0E0E0',   # Light gray
+    'pending_bg_hover':  '#CACACA',   # Slightly darker on hover
+    'pending_fg':        '#666666',   # Dark gray text
+    'current_bg':        '#1a3a5c',   # Dark navy
+    'current_bg_hover':  '#1f4570',   # Lighter navy on hover
+    'current_fg':        '#90caf9',   # Soft blue text
+    'current_border':    '#3b82f6',   # Bright blue border
+    'completed_bg':      '#388E3C',   # Darker green — white text contrast 4.0:1 (WCAG AA)
+    'completed_bg_hover':'#2E7D32',   # Deeper green on hover
+    'completed_fg':      '#FFFFFF',   # White text
     'ac_phase':       '#3498DB',   # Blue accent
     't_phase':        '#9B59B6',   # Purple accent
     'modified':       '#FF9800',   # Orange warning
@@ -261,17 +264,48 @@ class TimelineComponent(tk.Frame):
         if state == 'completed' and cycle is not None and cycle.actual_date:
             _add_tooltip(status_lbl, f"Completed {cycle.actual_date}")
 
-        # Bind click on box and all child labels so the whole box is clickable.
+        # Hover colours — slightly shifted shade of the base bg.
+        hover_bg = COLORS.get(f'{state}_bg_hover', bg)
+
+        def _on_enter(e):
+            box.configure(bg=hover_bg)
+            for child in box.winfo_children():
+                if isinstance(child, tk.Label):
+                    child.configure(bg=hover_bg)
+
+        def _on_leave(e):
+            box.configure(bg=bg)
+            for child in box.winfo_children():
+                if isinstance(child, tk.Label):
+                    child.configure(bg=bg)
+
+        # Bind click and hover on box and all child labels.
         for widget in (box, *box.winfo_children()):
             widget.bind('<Button-1>', lambda e, c=cycle, n=cycle_number: self._on_cycle_click(c, n))
+            widget.bind('<Enter>', _on_enter)
+            widget.bind('<Leave>', _on_leave)
             widget.configure(cursor='hand2')
 
         return box
 
     def _on_cycle_click(self, cycle: Cycle | None, cycle_number: int) -> None:
-        """Handle a click on a cycle box. Full dialog opens on Day 13."""
-        # Placeholder — completion dialog wired up in Day 13.
-        pass
+        """Handle a click on a cycle box.
+
+        Pending/current → CycleCompletionDialog (mark complete).
+        Completed       → CycleDetailDialog (view + edit).
+        """
+        from views.components.cycle_dialog import CycleCompletionDialog, CycleDetailDialog
+
+        if cycle is not None and cycle.status == 'completed':
+            CycleDetailDialog(
+                self, self.controller.conn, self.patient_id,
+                cycle, on_save=self.refresh
+            )
+        else:
+            CycleCompletionDialog(
+                self, self.controller.conn, self.patient_id,
+                cycle_number, cycle, on_save=self.refresh
+            )
 
     def _update_status_label(self, cycle_map: dict) -> None:
         """Set the status text above the timeline based on cycle progress."""
