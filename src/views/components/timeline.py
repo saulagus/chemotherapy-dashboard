@@ -294,7 +294,8 @@ class TimelineComponent(tk.Frame):
         Pending/current → CycleCompletionDialog (mark complete).
         Completed       → CycleDetailDialog (view + edit).
         """
-        from views.components.cycle_dialog import CycleCompletionDialog, CycleDetailDialog
+        from views.dialogs.cycle_completion_dialog import CycleCompletionDialog
+        from views.components.cycle_dialog import CycleDetailDialog
 
         if cycle is not None and cycle.status == 'completed':
             CycleDetailDialog(
