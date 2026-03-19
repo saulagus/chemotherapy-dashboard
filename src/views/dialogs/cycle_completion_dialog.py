@@ -5,9 +5,9 @@ from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import Cycle, add_cycle, update_cycle
 
 DOSE_REASONS = [
-    'Neutropenia', 'Thrombocytopenia', 'Neuropathy',
-    'Fatigue / Performance Status', 'Renal Impairment',
-    'Hepatic Impairment', 'Patient Request', 'Other',
+    'Neutropenia', 'Neuropathy', 'Thrombocytopenia',
+    'Hepatotoxicity', 'Patient Tolerance',
+    'Physician Discretion', 'Other',
 ]
 
 
@@ -73,22 +73,25 @@ class CycleCompletionDialog(tk.Toplevel):
                  highlightbackground=SEPARATOR, highlightthickness=1,
                  ).pack(fill='x', pady=(4, 14))
 
-        # Dose percentage — radio buttons
+        # Dose percentage — combobox dropdown
+        DOSE_OPTIONS = ['100% (Full dose)', '85%', '75%', '50%', 'Custom']
         self._add_label(body, "Dose Given")
-        dose_row = tk.Frame(body, bg=BG)
-        dose_row.pack(fill='x', pady=(4, 14))
 
-        self.dose_var = tk.StringVar(value='100')
+        self.dose_var = tk.StringVar(value='100% (Full dose)')
         if self.cycle and self.cycle.dose_percent is not None:
             pct = int(self.cycle.dose_percent)
-            self.dose_var.set(str(pct) if pct in (100, 85, 75, 50) else 'custom')
+            if pct == 100:
+                self.dose_var.set('100% (Full dose)')
+            elif pct in (85, 75, 50):
+                self.dose_var.set(f'{pct}%')
+            else:
+                self.dose_var.set('Custom')
 
-        for label, value in [('100%', '100'), ('85%', '85'), ('75%', '75'), ('50%', '50'), ('Custom', 'custom')]:
-            tk.Radiobutton(dose_row, text=label, variable=self.dose_var, value=value,
-                           font=('Arial', 12), bg=BG, fg=FG,
-                           selectcolor=BG_ALT, activebackground=BG, activeforeground=FG,
-                           command=self._on_dose_change,
-                           ).pack(side='left', padx=(0, 12))
+        self.dose_combo = ttk.Combobox(body, textvariable=self.dose_var,
+                                       values=DOSE_OPTIONS, state='readonly',
+                                       font=('Arial', 13))
+        self.dose_combo.pack(fill='x', pady=(4, 14))
+        self.dose_combo.bind('<<ComboboxSelected>>', lambda e: self._on_dose_change())
 
         # Custom dose entry — shown only when Custom selected
         self.custom_dose_frame = tk.Frame(body, bg=BG)
@@ -104,15 +107,37 @@ class CycleCompletionDialog(tk.Toplevel):
         # Dose reason dropdown — shown only when dose < 100%
         self.reason_frame = tk.Frame(body, bg=BG)
         self._add_label(self.reason_frame, "Reason for Dose Modification")
-        self.reason_var = tk.StringVar(
-            value=self.cycle.dose_reason if self.cycle and self.cycle.dose_reason else DOSE_REASONS[0]
-        )
-        ttk.Combobox(self.reason_frame, textvariable=self.reason_var,
-                     values=DOSE_REASONS, state='readonly',
-                     font=('Arial', 12)).pack(fill='x', pady=(4, 0))
 
-        # Notes
-        self._add_label(body, "Notes (optional)")
+        # Pre-fill: if saved reason isn't in the list it was a custom "Other" entry
+        saved_reason = self.cycle.dose_reason if self.cycle and self.cycle.dose_reason else ''
+        initial_reason = saved_reason if saved_reason in DOSE_REASONS else ('Other' if saved_reason else DOSE_REASONS[0])
+        self.reason_var = tk.StringVar(value=initial_reason)
+
+        self.reason_combo = ttk.Combobox(self.reason_frame, textvariable=self.reason_var,
+                                         values=DOSE_REASONS, state='readonly',
+                                         font=('Arial', 12))
+        self.reason_combo.pack(fill='x', pady=(4, 6))
+        self.reason_combo.bind('<<ComboboxSelected>>', lambda e: self._on_reason_change())
+
+        # "Other" free text — shown only when Other selected
+        self.other_reason_frame = tk.Frame(self.reason_frame, bg=BG)
+        self._add_label(self.other_reason_frame, "Please specify")
+        self.other_reason_var = tk.StringVar(value=saved_reason if saved_reason not in DOSE_REASONS else '')
+        tk.Entry(self.other_reason_frame, textvariable=self.other_reason_var,
+                 font=('Arial', 12), bg=BG_ALT, fg=FG, insertbackground=FG,
+                 relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
+                 ).pack(fill='x', pady=(4, 0))
+
+        self._on_reason_change()
+
+        # Notes — optional, max 500 characters
+        notes_header = tk.Frame(body, bg=BG)
+        notes_header.pack(fill='x')
+        self._add_label(notes_header, "Notes (optional)")
+        self.char_count_label = tk.Label(notes_header, text="0 / 500",
+                                         font=('Arial', 10), bg=BG, fg=FG_MUTED)
+        self.char_count_label.pack(side='right')
+
         self.notes_text = tk.Text(body, height=4, font=('Arial', 12),
                                   bg=BG_ALT, fg=FG, insertbackground=FG,
                                   relief='flat', wrap='word',
@@ -120,6 +145,8 @@ class CycleCompletionDialog(tk.Toplevel):
         self.notes_text.pack(fill='x', pady=(4, 0))
         if self.cycle and self.cycle.notes:
             self.notes_text.insert('1.0', self.cycle.notes)
+        self.notes_text.bind('<KeyRelease>', self._on_notes_change)
+        self._on_notes_change()
 
         # Trigger show/hide on initial state
         self._on_dose_change()
@@ -158,10 +185,27 @@ class CycleCompletionDialog(tk.Toplevel):
 
     # ── Dose visibility ───────────────────────────────────────────────────────
 
+    def _on_notes_change(self, event=None):
+        """Update character counter and cap input at 500 characters."""
+        content = self.notes_text.get('1.0', 'end-1c')
+        if len(content) > 500:
+            self.notes_text.delete('1.0', 'end')
+            self.notes_text.insert('1.0', content[:500])
+            content = content[:500]
+        self.char_count_label.config(text=f"{len(content)} / 500")
+
+    def _on_reason_change(self):
+        """Show free text entry when 'Other' is selected as the reason."""
+        if self.reason_var.get() == 'Other':
+            self.other_reason_frame.pack(fill='x', pady=(4, 0))
+        else:
+            self.other_reason_frame.pack_forget()
+
     def _on_dose_change(self):
         """Show/hide custom dose entry and reason dropdown based on selection."""
-        is_custom  = self.dose_var.get() == 'custom'
-        is_reduced = self.dose_var.get() != '100'
+        selected   = self.dose_var.get()
+        is_custom  = selected == 'Custom'
+        is_reduced = selected != '100% (Full dose)'
 
         if is_custom:
             self.custom_dose_frame.pack(fill='x', pady=(0, 8))
@@ -197,7 +241,7 @@ class CycleCompletionDialog(tk.Toplevel):
 
         # Validate dose
         dose_selection = self.dose_var.get()
-        if dose_selection == 'custom':
+        if dose_selection == 'Custom':
             try:
                 dose_percent = float(self.custom_dose_var.get().strip())
                 if not (1 <= dose_percent <= 100):
@@ -206,9 +250,19 @@ class CycleCompletionDialog(tk.Toplevel):
                 self._show_error("Custom dose must be a number between 1 and 100.")
                 return
         else:
-            dose_percent = float(dose_selection)
+            dose_percent = float(dose_selection.replace('% (Full dose)', '').replace('%', ''))
 
-        dose_reason = self.reason_var.get() if dose_percent < 100 else None
+        if dose_percent < 100:
+            if self.reason_var.get() == 'Other':
+                other = self.other_reason_var.get().strip()
+                if not other:
+                    self._show_error("Please specify the reason for dose modification.")
+                    return
+                dose_reason = other
+            else:
+                dose_reason = self.reason_var.get()
+        else:
+            dose_reason = None
         notes       = self.notes_text.get('1.0', 'end').strip() or None
         phase       = 'AC' if self.cycle_number <= 4 else 'T'
 
