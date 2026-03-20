@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from datetime import date
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import Cycle, add_cycle, update_cycle
@@ -38,11 +38,13 @@ class CycleCompletionDialog(tk.Toplevel):
 
         self.title(f"Complete Cycle {cycle_number}")
         self.configure(bg=BG)
-        self.resizable(False, False)
+        self.resizable(False, True)
         self.grab_set()
 
         self._build_ui()
         self._center()
+        self.minsize(480, 520)
+        self.protocol('WM_DELETE_WINDOW', self._confirm_cancel)
 
     # ── Layout ────────────────────────────────────────────────────────────────
 
@@ -59,11 +61,31 @@ class CycleCompletionDialog(tk.Toplevel):
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
-        body = tk.Frame(self, bg=BG, padx=24, pady=20)
-        body.pack(fill='both')
+        # Buttons pinned to bottom before body so expand=True doesn't push them off
+        btn_sep = tk.Frame(self, bg=SEPARATOR, height=1)
+        btn_sep.pack(side='bottom', fill='x')
+        btn_row = tk.Frame(self, bg=BG, padx=24, pady=16)
+        btn_row.pack(side='bottom', fill='x')
 
-        # Completion date
-        self._add_label(body, "Completion Date (YYYY-MM-DD)")
+        cancel = tk.Label(btn_row, text="Cancel", font=('Arial', 13),
+                          bg=BG, fg=FG_MUTED, cursor='hand2', padx=10)
+        cancel.pack(side='right')
+        cancel.bind('<Button-1>', lambda e: self._confirm_cancel())
+
+        save = tk.Label(btn_row, text="Mark Complete", font=('Arial', 13, 'bold'),
+                        bg='#388E3C', fg='#FFFFFF', cursor='hand2', padx=14, pady=6)
+        save.pack(side='right', padx=(0, 12))
+        save.bind('<Button-1>', lambda e: self._on_save())
+
+        body = tk.Frame(self, bg=BG, padx=24, pady=20)
+        body.pack(fill='both', expand=True)
+        body.columnconfigure(0, weight=0, minsize=180)  # Label column
+        body.columnconfigure(1, weight=1)               # Input column
+
+        row = 0  # Grid row counter
+
+        # ── Completion date ──────────────────────────────────────────────────
+        self._grid_label(body, "Completion Date", row)
         self.date_var = tk.StringVar(value=str(date.today()))
         if self.cycle and self.cycle.actual_date:
             self.date_var.set(str(self.cycle.actual_date))
@@ -71,110 +93,126 @@ class CycleCompletionDialog(tk.Toplevel):
                  font=('Arial', 13), bg=BG_ALT, fg=FG,
                  insertbackground=FG, relief='flat',
                  highlightbackground=SEPARATOR, highlightthickness=1,
-                 ).pack(fill='x', pady=(4, 14))
+                 ).grid(row=row, column=1, sticky='ew', pady=(0, 12))
+        row += 1
 
-        # Dose percentage — combobox dropdown
+        # Format hint
+        tk.Label(body, text="YYYY-MM-DD", font=('Arial', 10), bg=BG, fg=FG_MUTED,
+                 ).grid(row=row, column=1, sticky='w', pady=(0, 6))
+        row += 1
+
+        # ── Dose percentage ──────────────────────────────────────────────────
         DOSE_OPTIONS = ['100% (Full dose)', '85%', '75%', '50%', 'Custom']
-        self._add_label(body, "Dose Given")
+        self._grid_label(body, "Dose Given", row)
 
         self.dose_var = tk.StringVar(value='100% (Full dose)')
         if self.cycle and self.cycle.dose_percent is not None:
             pct = int(self.cycle.dose_percent)
-            if pct == 100:
-                self.dose_var.set('100% (Full dose)')
-            elif pct in (85, 75, 50):
-                self.dose_var.set(f'{pct}%')
-            else:
-                self.dose_var.set('Custom')
+            if pct == 100:   self.dose_var.set('100% (Full dose)')
+            elif pct in (85, 75, 50): self.dose_var.set(f'{pct}%')
+            else:            self.dose_var.set('Custom')
 
         self.dose_combo = ttk.Combobox(body, textvariable=self.dose_var,
                                        values=DOSE_OPTIONS, state='readonly',
                                        font=('Arial', 13))
-        self.dose_combo.pack(fill='x', pady=(4, 14))
+        self.dose_combo.grid(row=row, column=1, sticky='ew', pady=(0, 12))
         self.dose_combo.bind('<<ComboboxSelected>>', lambda e: self._on_dose_change())
+        row += 1
 
-        # Custom dose entry — shown only when Custom selected
+        # ── Custom dose entry (hidden until Custom selected) ─────────────────
         self.custom_dose_frame = tk.Frame(body, bg=BG)
-        self._add_label(self.custom_dose_frame, "Custom Dose (%)")
+        self.custom_dose_frame.columnconfigure(0, weight=1)
+        self._grid_label(self.custom_dose_frame, "Custom Dose (%)", 0)
         self.custom_dose_var = tk.StringVar(value='')
         if self.cycle and self.cycle.dose_percent and int(self.cycle.dose_percent) not in (100, 85, 75, 50):
             self.custom_dose_var.set(str(int(self.cycle.dose_percent)))
         tk.Entry(self.custom_dose_frame, textvariable=self.custom_dose_var,
                  font=('Arial', 13), bg=BG_ALT, fg=FG, insertbackground=FG,
                  relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
-                 width=8).pack(anchor='w', pady=(4, 0))
+                 width=8).grid(row=0, column=1, sticky='w', pady=(0, 12))
+        self.custom_dose_frame.columnconfigure(1, weight=0)
+        # Store row index so _on_dose_change can grid/unGrid this frame later.
+        # The frame is NOT gridded here — it starts hidden and is shown only
+        # when the user selects 'Custom' from the dose dropdown.
+        self._custom_dose_row = row
+        row += 1
 
-        # Dose reason dropdown — shown only when dose < 100%
+        # ── Dose reason (hidden until dose < 100%) ───────────────────────────
         self.reason_frame = tk.Frame(body, bg=BG)
-        self._add_label(self.reason_frame, "Reason for Dose Modification")
-
-        # Pre-fill: if saved reason isn't in the list it was a custom "Other" entry
-        saved_reason = self.cycle.dose_reason if self.cycle and self.cycle.dose_reason else ''
-        initial_reason = saved_reason if saved_reason in DOSE_REASONS else ('Other' if saved_reason else DOSE_REASONS[0])
+        self.reason_frame.columnconfigure(1, weight=1)
+        saved_reason    = self.cycle.dose_reason if self.cycle and self.cycle.dose_reason else ''
+        initial_reason  = saved_reason if saved_reason in DOSE_REASONS else ('Other' if saved_reason else DOSE_REASONS[0])
         self.reason_var = tk.StringVar(value=initial_reason)
 
+        self.reason_label = tk.Label(self.reason_frame, text="Dose Reason",
+                                     font=('Arial', 12), bg=BG, fg=FG_MUTED, anchor='w')
+        self.reason_label.grid(row=0, column=0, sticky='nw', padx=(0, 16), pady=(0, 12))
         self.reason_combo = ttk.Combobox(self.reason_frame, textvariable=self.reason_var,
-                                         values=DOSE_REASONS, state='readonly',
-                                         font=('Arial', 12))
-        self.reason_combo.pack(fill='x', pady=(4, 6))
+                                         values=DOSE_REASONS, state='readonly', font=('Arial', 12))
+        self.reason_combo.grid(row=0, column=1, sticky='ew', pady=(0, 6))
         self.reason_combo.bind('<<ComboboxSelected>>', lambda e: self._on_reason_change())
 
-        # "Other" free text — shown only when Other selected
+        # "Other" free text sub-row
         self.other_reason_frame = tk.Frame(self.reason_frame, bg=BG)
-        self._add_label(self.other_reason_frame, "Please specify")
+        self.other_reason_frame.columnconfigure(1, weight=1)
+        self._grid_label(self.other_reason_frame, "Please specify", 0)
         self.other_reason_var = tk.StringVar(value=saved_reason if saved_reason not in DOSE_REASONS else '')
         tk.Entry(self.other_reason_frame, textvariable=self.other_reason_var,
                  font=('Arial', 12), bg=BG_ALT, fg=FG, insertbackground=FG,
                  relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
-                 ).pack(fill='x', pady=(4, 0))
+                 ).grid(row=0, column=1, sticky='ew', pady=(0, 8))
+        # Same deferred-grid pattern as custom_dose_frame above — starts hidden,
+        # shown by _on_dose_change whenever a reduced dose is selected.
+        self._reason_row = row
+        row += 1
 
-        self._on_reason_change()
-
-        # Notes — optional, max 500 characters
-        notes_header = tk.Frame(body, bg=BG)
-        notes_header.pack(fill='x')
-        self._add_label(notes_header, "Notes (optional)")
-        self.char_count_label = tk.Label(notes_header, text="0 / 500",
-                                         font=('Arial', 10), bg=BG, fg=FG_MUTED)
-        self.char_count_label.pack(side='right')
+        # ── Notes ────────────────────────────────────────────────────────────
+        self._grid_label(body, "Notes (optional)", row)
+        self.char_count_label = tk.Label(body, text="0 / 500",
+                                         font=('Arial', 10), bg=BG, fg=FG_MUTED, anchor='e')
+        self.char_count_label.grid(row=row, column=1, sticky='e')
+        row += 1
 
         self.notes_text = tk.Text(body, height=4, font=('Arial', 12),
                                   bg=BG_ALT, fg=FG, insertbackground=FG,
                                   relief='flat', wrap='word',
                                   highlightbackground=SEPARATOR, highlightthickness=1)
-        self.notes_text.pack(fill='x', pady=(4, 0))
+        self.notes_text.grid(row=row, column=0, columnspan=2, sticky='ew', pady=(4, 0))
         if self.cycle and self.cycle.notes:
             self.notes_text.insert('1.0', self.cycle.notes)
         self.notes_text.bind('<KeyRelease>', self._on_notes_change)
         self._on_notes_change()
+        row += 1
 
-        # Trigger show/hide on initial state
+        # Trigger show/hide on initial values
         self._on_dose_change()
+        self._on_reason_change()
+
+        # Snapshot field values at open time so _has_changes() can tell whether
+        # the user modified anything — used to decide if a cancel confirmation
+        # dialog is needed.
+        self._initial = {
+            'date':  self.date_var.get(),
+            'dose':  self.dose_var.get(),
+            'notes': self.cycle.notes if self.cycle and self.cycle.notes else '',
+        }
 
         # Inline error
         self.error_label = tk.Label(body, text='', font=('Arial', 11),
                                     bg=BG, fg='#e05555', anchor='w')
-        self.error_label.pack(anchor='w', pady=(8, 0))
+        self.error_label.grid(row=row, column=0, columnspan=2, sticky='w', pady=(8, 0))
 
-        tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
-
-        # Buttons
-        btn_row = tk.Frame(self, bg=BG, padx=24, pady=16)
-        btn_row.pack(fill='x')
-
-        cancel = tk.Label(btn_row, text="Cancel", font=('Arial', 13),
-                          bg=BG, fg=FG_MUTED, cursor='hand2', padx=10)
-        cancel.pack(side='right')
-        cancel.bind('<Button-1>', lambda e: self.destroy())
-
-        save = tk.Label(btn_row, text="Mark Complete", font=('Arial', 13, 'bold'),
-                        bg='#388E3C', fg='#FFFFFF', cursor='hand2', padx=14, pady=6)
-        save.pack(side='right', padx=(0, 12))
-        save.bind('<Button-1>', lambda e: self._on_save())
 
     def _add_label(self, parent, text):
+        """Pack-based label — used in header only."""
         tk.Label(parent, text=text, font=('Arial', 12),
                  bg=BG, fg=FG_MUTED, anchor='w').pack(anchor='w')
+
+    def _grid_label(self, parent, text, row):
+        """Grid-based label for column 0 of a form row."""
+        tk.Label(parent, text=text, font=('Arial', 12),
+                 bg=BG, fg=FG_MUTED, anchor='w',
+                 ).grid(row=row, column=0, sticky='nw', padx=(0, 16), pady=(0, 12))
 
     def _center(self):
         self.update_idletasks()
@@ -197,9 +235,9 @@ class CycleCompletionDialog(tk.Toplevel):
     def _on_reason_change(self):
         """Show free text entry when 'Other' is selected as the reason."""
         if self.reason_var.get() == 'Other':
-            self.other_reason_frame.pack(fill='x', pady=(4, 0))
+            self.other_reason_frame.grid(row=1, column=0, columnspan=2, sticky='ew', pady=(0, 8))
         else:
-            self.other_reason_frame.pack_forget()
+            self.other_reason_frame.grid_remove()
 
     def _on_dose_change(self):
         """Show/hide custom dose entry and reason dropdown based on selection."""
@@ -208,14 +246,40 @@ class CycleCompletionDialog(tk.Toplevel):
         is_reduced = selected != '100% (Full dose)'
 
         if is_custom:
-            self.custom_dose_frame.pack(fill='x', pady=(0, 8))
+            self.custom_dose_frame.grid(row=self._custom_dose_row, column=0,
+                                        columnspan=2, sticky='ew', pady=(0, 8))
         else:
-            self.custom_dose_frame.pack_forget()
+            self.custom_dose_frame.grid_remove()
 
         if is_reduced:
-            self.reason_frame.pack(fill='x', pady=(0, 14))
+            # Mark reason as required with red asterisk
+            self.reason_label.config(text="Dose Reason *", fg='#e05555')
+            self.reason_frame.grid(row=self._reason_row, column=0,
+                                   columnspan=2, sticky='ew', pady=(0, 12))
         else:
-            self.reason_frame.pack_forget()
+            self.reason_label.config(text="Dose Reason", fg=FG_MUTED)
+            self.reason_frame.grid_remove()
+
+    # ── Close behavior ────────────────────────────────────────────────────────
+
+    def _has_changes(self) -> bool:
+        """Return True if the user has modified any field from its initial value."""
+        date_changed = self.date_var.get().strip() != self._initial['date']
+        dose_changed = self.dose_var.get() != self._initial['dose']
+        notes_changed = self.notes_text.get('1.0', 'end-1c') != self._initial['notes']
+        return date_changed or dose_changed or notes_changed
+
+    def _confirm_cancel(self):
+        """Close dialog, asking for confirmation only if the form has been modified."""
+        if self._has_changes():
+            ok = messagebox.askokcancel(
+                'Discard changes?',
+                'You have unsaved changes. Close without saving?',
+                parent=self,
+            )
+            if not ok:
+                return
+        self.destroy()
 
     # ── Validation & Save ─────────────────────────────────────────────────────
 

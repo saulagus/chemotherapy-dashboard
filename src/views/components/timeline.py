@@ -279,7 +279,10 @@ class TimelineComponent(tk.Frame):
                 if isinstance(child, tk.Label):
                     child.configure(bg=bg)
 
-        # Bind click and hover on box and all child labels.
+        # Bind click and hover on the box frame AND every child label so the
+        # full 82x82 area is clickable — not just the gaps between labels.
+        # Default args (c=cycle, n=cycle_number) capture current loop values;
+        # without them every lambda would close over the final loop iteration.
         for widget in (box, *box.winfo_children()):
             widget.bind('<Button-1>', lambda e, c=cycle, n=cycle_number: self._on_cycle_click(c, n))
             widget.bind('<Enter>', _on_enter)
