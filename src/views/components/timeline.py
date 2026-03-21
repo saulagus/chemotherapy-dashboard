@@ -299,6 +299,7 @@ class TimelineComponent(tk.Frame):
         """
         from views.dialogs.cycle_completion_dialog import CycleCompletionDialog
         from views.components.cycle_dialog import CycleDetailDialog
+        from models import get_patient_by_db_id
 
         if cycle is not None and cycle.status == 'completed':
             CycleDetailDialog(
@@ -306,9 +307,11 @@ class TimelineComponent(tk.Frame):
                 cycle, on_save=self.refresh
             )
         else:
+            patient    = get_patient_by_db_id(self.controller.conn, self.patient_id)
+            start_date = patient.start_date if patient else None
             CycleCompletionDialog(
                 self, self.controller.conn, self.patient_id,
-                cycle_number, cycle, on_save=self.refresh
+                cycle_number, cycle, on_save=self.refresh, start_date=start_date
             )
 
     def _update_status_label(self, cycle_map: dict) -> None:

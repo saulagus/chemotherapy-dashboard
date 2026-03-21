@@ -26,15 +26,18 @@ class CycleCompletionDialog(tk.Toplevel):
     cycle_number : int              — cycle being completed (1-8)
     cycle        : Cycle | None     — existing Cycle object, or None if not in DB yet
     on_save      : callable | None  — called with no args after a successful save
+    start_date   : date | None      — treatment start date used to validate completion date
     """
 
-    def __init__(self, parent, conn, patient_id, cycle_number, cycle=None, on_save=None):
+    def __init__(self, parent, conn, patient_id, cycle_number,
+                 cycle=None, on_save=None, start_date=None):
         super().__init__(parent)
         self.conn         = conn
         self.patient_id   = patient_id
         self.cycle_number = cycle_number
         self.cycle        = cycle
         self.on_save      = on_save
+        self.start_date   = start_date
 
         self.title(f"Complete Cycle {cycle_number}")
         self.configure(bg=BG)
@@ -89,11 +92,11 @@ class CycleCompletionDialog(tk.Toplevel):
         self.date_var = tk.StringVar(value=str(date.today()))
         if self.cycle and self.cycle.actual_date:
             self.date_var.set(str(self.cycle.actual_date))
-        tk.Entry(body, textvariable=self.date_var,
+        self.date_entry = tk.Entry(body, textvariable=self.date_var,
                  font=('Arial', 13), bg=BG_ALT, fg=FG,
                  insertbackground=FG, relief='flat',
-                 highlightbackground=SEPARATOR, highlightthickness=1,
-                 ).grid(row=row, column=1, sticky='ew', pady=(0, 12))
+                 highlightbackground=SEPARATOR, highlightthickness=1)
+        self.date_entry.grid(row=row, column=1, sticky='ew', pady=(0, 12))
         row += 1
 
         # Format hint
@@ -126,10 +129,11 @@ class CycleCompletionDialog(tk.Toplevel):
         self.custom_dose_var = tk.StringVar(value='')
         if self.cycle and self.cycle.dose_percent and int(self.cycle.dose_percent) not in (100, 85, 75, 50):
             self.custom_dose_var.set(str(int(self.cycle.dose_percent)))
-        tk.Entry(self.custom_dose_frame, textvariable=self.custom_dose_var,
+        self.custom_dose_entry = tk.Entry(self.custom_dose_frame, textvariable=self.custom_dose_var,
                  font=('Arial', 13), bg=BG_ALT, fg=FG, insertbackground=FG,
                  relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
-                 width=8).grid(row=0, column=1, sticky='w', pady=(0, 12))
+                 width=8)
+        self.custom_dose_entry.grid(row=0, column=1, sticky='w', pady=(0, 12))
         self.custom_dose_frame.columnconfigure(1, weight=0)
         # Store row index so _on_dose_change can grid/unGrid this frame later.
         # The frame is NOT gridded here — it starts hidden and is shown only
@@ -157,10 +161,10 @@ class CycleCompletionDialog(tk.Toplevel):
         self.other_reason_frame.columnconfigure(1, weight=1)
         self._grid_label(self.other_reason_frame, "Please specify", 0)
         self.other_reason_var = tk.StringVar(value=saved_reason if saved_reason not in DOSE_REASONS else '')
-        tk.Entry(self.other_reason_frame, textvariable=self.other_reason_var,
+        self.other_reason_entry = tk.Entry(self.other_reason_frame, textvariable=self.other_reason_var,
                  font=('Arial', 12), bg=BG_ALT, fg=FG, insertbackground=FG,
-                 relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
-                 ).grid(row=0, column=1, sticky='ew', pady=(0, 8))
+                 relief='flat', highlightbackground=SEPARATOR, highlightthickness=1)
+        self.other_reason_entry.grid(row=0, column=1, sticky='ew', pady=(0, 8))
         # Same deferred-grid pattern as custom_dose_frame above — starts hidden,
         # shown by _on_dose_change whenever a reduced dose is selected.
         self._reason_row = row
@@ -197,10 +201,6 @@ class CycleCompletionDialog(tk.Toplevel):
             'notes': self.cycle.notes if self.cycle and self.cycle.notes else '',
         }
 
-        # Inline error
-        self.error_label = tk.Label(body, text='', font=('Arial', 11),
-                                    bg=BG, fg='#e05555', anchor='w')
-        self.error_label.grid(row=row, column=0, columnspan=2, sticky='w', pady=(8, 0))
 
 
     def _add_label(self, parent, text):
@@ -283,52 +283,141 @@ class CycleCompletionDialog(tk.Toplevel):
 
     # ── Validation & Save ─────────────────────────────────────────────────────
 
-    def _show_error(self, msg):
-        self.error_label.config(text=msg)
+    def get_form_data(self) -> dict:
+        """Return raw field values as a dictionary — no validation applied.
 
-    def _clear_error(self):
-        self.error_label.config(text='')
-
-    def _on_save(self):
-        self._clear_error()
-
-        # Validate date
-        date_str = self.date_var.get().strip()
-        try:
-            actual_date = date.fromisoformat(date_str)
-        except ValueError:
-            self._show_error("Invalid date — use YYYY-MM-DD format.")
-            return
-        if actual_date > date.today():
-            self._show_error("Completion date cannot be in the future.")
-            return
-
-        # Validate dose
+        Keys
+        ----
+        date_completed  : str         — raw text from the date entry (YYYY-MM-DD)
+        dose_selection  : str         — dropdown value e.g. '85%', 'Custom', '100% (Full dose)'
+        dose_percent_raw: str | None  — custom dose text when selection is 'Custom', else None
+        dose_reason     : str | None  — selected/typed reason; None when full dose chosen
+        notes           : str | None  — trimmed notes text, or None if empty
+        """
         dose_selection = self.dose_var.get()
-        if dose_selection == 'Custom':
+
+        # Collect the free-text dose only when 'Custom' is active.
+        dose_percent_raw = (
+            self.custom_dose_var.get().strip() if dose_selection == 'Custom' else None
+        )
+
+        # Collect reason only when a reduced dose is selected; resolve 'Other' to its text.
+        if dose_selection == '100% (Full dose)':
+            dose_reason = None
+        elif self.reason_var.get() == 'Other':
+            dose_reason = self.other_reason_var.get().strip() or None
+        else:
+            dose_reason = self.reason_var.get()
+
+        return {
+            'date_completed':   self.date_var.get().strip(),
+            'dose_selection':   dose_selection,
+            'dose_percent_raw': dose_percent_raw,
+            'dose_reason':      dose_reason,
+            'notes':            self.notes_text.get('1.0', 'end-1c').strip() or None,
+        }
+
+    def validate(self) -> list[str]:
+        """Validate all form fields and return a list of error messages.
+
+        Returns an empty list when the form is valid.
+        Errors are returned in field order (date → dose → reason) so the
+        first one can be shown as an inline error without overwhelming the user.
+        """
+        errors = []
+        data   = self.get_form_data()
+
+        # ── Date ──────────────────────────────────────────────────────────────
+        date_str = data['date_completed']
+        if not date_str:
+            errors.append("Completion date is required.")
+        else:
             try:
-                dose_percent = float(self.custom_dose_var.get().strip())
-                if not (1 <= dose_percent <= 100):
+                actual_date = date.fromisoformat(date_str)
+            except ValueError:
+                errors.append("Invalid date — use YYYY-MM-DD format.")
+                actual_date = None
+
+            if actual_date is not None:
+                if actual_date > date.today():
+                    errors.append("Completion date cannot be in the future.")
+                if self.start_date and actual_date < self.start_date:
+                    errors.append(
+                        f"Completion date cannot be before treatment start "
+                        f"({self.start_date})."
+                    )
+
+        # ── Dose ──────────────────────────────────────────────────────────────
+        if data['dose_selection'] == 'Custom':
+            # Strip a trailing % the user may have typed (e.g. "85%") before parsing.
+            raw = (data['dose_percent_raw'] or '').replace('%', '').strip()
+            try:
+                dose_val = float(raw)
+                if not (1 <= dose_val <= 100):
                     raise ValueError
             except ValueError:
-                self._show_error("Custom dose must be a number between 1 and 100.")
-                return
-        else:
-            dose_percent = float(dose_selection.replace('% (Full dose)', '').replace('%', ''))
+                errors.append("Custom dose must be a number between 1 and 100.")
 
-        if dose_percent < 100:
-            if self.reason_var.get() == 'Other':
-                other = self.other_reason_var.get().strip()
-                if not other:
-                    self._show_error("Please specify the reason for dose modification.")
-                    return
-                dose_reason = other
-            else:
-                dose_reason = self.reason_var.get()
+        # ── Reason ────────────────────────────────────────────────────────────
+        # Reason is only required when the actual dose is below 100%.
+        # For preset selections the dropdown value implies the dose; for Custom
+        # we parse the numeric value (defaulting to 100 if unparseable — the
+        # dose error above already covers that case).
+        if data['dose_selection'] == 'Custom':
+            try:
+                raw = (data['dose_percent_raw'] or '').replace('%', '').strip()
+                is_reduced = float(raw) < 100
+            except ValueError:
+                is_reduced = False  # Dose error already reported; skip reason check.
         else:
-            dose_reason = None
-        notes       = self.notes_text.get('1.0', 'end').strip() or None
-        phase       = 'AC' if self.cycle_number <= 4 else 'T'
+            is_reduced = data['dose_selection'] != '100% (Full dose)'
+
+        if is_reduced:
+            if self.reason_var.get() == 'Other' and not data['dose_reason']:
+                errors.append("Please describe the reason in the text field below.")
+            elif not data['dose_reason']:
+                errors.append("Please select a reason for the dose modification.")
+
+        return errors
+
+    def _focus_first_error(self, errors: list[str]) -> None:
+        """Move keyboard focus to the field that produced the first error."""
+        first = errors[0] if errors else ''
+        if 'date' in first.lower():
+            self.date_entry.focus_set()
+            self.date_entry.select_range(0, 'end')
+        elif 'dose' in first.lower():
+            self.custom_dose_entry.focus_set()
+            self.custom_dose_entry.select_range(0, 'end')
+        elif 'reason' in first.lower() or 'describe' in first.lower():
+            if self.reason_var.get() == 'Other':
+                self.other_reason_entry.focus_set()
+            else:
+                self.reason_combo.focus_set()
+
+    def _on_save(self):
+        errors = self.validate()
+        if errors:
+            messagebox.showerror(
+                'Please fix the following errors',
+                '\n'.join(f'• {e}' for e in errors),
+                parent=self,
+            )
+            self._focus_first_error(errors)
+            return
+
+        data = self.get_form_data()
+        actual_date  = date.fromisoformat(data['date_completed'])
+        dose_reason  = data['dose_reason']
+        notes        = data['notes']
+        phase        = 'AC' if self.cycle_number <= 4 else 'T'
+
+        if data['dose_selection'] == 'Custom':
+            dose_percent = float(data['dose_percent_raw'].replace('%', '').strip())
+        else:
+            dose_percent = float(
+                data['dose_selection'].replace('% (Full dose)', '').replace('%', '')
+            )
 
         if self.cycle is None:
             add_cycle(self.conn, Cycle(
