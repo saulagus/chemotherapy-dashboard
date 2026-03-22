@@ -1,8 +1,11 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
 from models import Cycle, add_cycle, update_cycle
+
+log = logging.getLogger(__name__)
 
 DOSE_REASONS = [
     'Neutropenia', 'Neuropathy', 'Thrombocytopenia',
@@ -419,24 +422,36 @@ class CycleCompletionDialog(tk.Toplevel):
                 data['dose_selection'].replace('% (Full dose)', '').replace('%', '')
             )
 
-        if self.cycle is None:
-            add_cycle(self.conn, Cycle(
-                patient_id=self.patient_id,
-                cycle_number=self.cycle_number,
-                phase=phase,
-                actual_date=actual_date,
-                status='completed',
-                dose_percent=dose_percent,
-                dose_reason=dose_reason,
-                notes=notes,
-            ))
-        else:
-            self.cycle.actual_date  = actual_date
-            self.cycle.status       = 'completed'
-            self.cycle.dose_percent = dose_percent
-            self.cycle.dose_reason  = dose_reason
-            self.cycle.notes        = notes
-            update_cycle(self.conn, self.cycle)
+        try:
+            if self.cycle is None:
+                add_cycle(self.conn, Cycle(
+                    patient_id=self.patient_id,
+                    cycle_number=self.cycle_number,
+                    phase=phase,
+                    actual_date=actual_date,
+                    status='completed',
+                    dose_percent=dose_percent,
+                    dose_reason=dose_reason,
+                    notes=notes,
+                ))
+            else:
+                self.cycle.actual_date  = actual_date
+                self.cycle.status       = 'completed'
+                self.cycle.dose_percent = dose_percent
+                self.cycle.dose_reason  = dose_reason
+                self.cycle.notes        = notes
+                update_cycle(self.conn, self.cycle)
+        except Exception as e:
+            log.exception(
+                'Failed to save cycle %d for patient_id=%d',
+                self.cycle_number, self.patient_id,
+            )
+            messagebox.showerror(
+                'Save Failed',
+                f'Could not save cycle data:\n{e}',
+                parent=self,
+            )
+            return
 
         if self.on_save:
             self.on_save()
