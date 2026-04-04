@@ -260,9 +260,26 @@ class TimelineComponent(tk.Frame):
                               font=status_font, bg=bg, fg=fg)
         status_lbl.pack(pady=(0, 5))
 
-        # Tooltip: show completed date on hover for completed cycles.
+        # Dose modification indicator — orange ⚠ badge in top-right corner.
+        # Only shown on completed cycles where dose was reduced below 100%.
+        is_modified = (
+            state == 'completed'
+            and cycle is not None
+            and cycle.dose_percent is not None
+            and cycle.dose_percent < 100
+        )
+        if is_modified:
+            mod_badge = tk.Label(box, text='⚠', font=('Arial', 11, 'bold'),
+                                 bg=bg, fg=COLORS['modified'])
+            mod_badge.place(relx=1.0, rely=0.0, anchor='ne', x=-4, y=6)
+
+        # Tooltip: completed date, plus dose info if modified.
         if state == 'completed' and cycle is not None and cycle.actual_date:
-            _add_tooltip(status_lbl, f"Completed {cycle.actual_date}")
+            tip_text = f"Completed {cycle.actual_date}"
+            if is_modified:
+                reason_part = f" — {cycle.dose_reason}" if cycle.dose_reason else ""
+                tip_text += f"\nDose: {int(cycle.dose_percent)}%{reason_part}"
+            _add_tooltip(status_lbl, tip_text)
 
         # Hover colours — slightly shifted shade of the base bg.
         hover_bg = COLORS.get(f'{state}_bg_hover', bg)
