@@ -51,6 +51,9 @@ class CycleCompletionDialog(tk.Toplevel):
         self._center()
         self.minsize(480, 520)
         self.protocol('WM_DELETE_WINDOW', self._confirm_cancel)
+        self.bind('<Return>', lambda e: self._on_save())
+        self.bind('<Escape>', lambda e: self._confirm_cancel())
+        self.date_entry.focus_set()
 
     # ── Layout ────────────────────────────────────────────────────────────────
 
