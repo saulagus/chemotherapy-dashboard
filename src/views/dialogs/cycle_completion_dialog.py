@@ -125,6 +125,16 @@ class CycleCompletionDialog(tk.Toplevel):
         self.dose_combo.bind('<<ComboboxSelected>>', lambda e: self._on_dose_change())
         row += 1
 
+        # ── Dose reduction warning (hidden until dose < 100%) ────────────────
+        # Starts hidden; _on_dose_change shows it whenever a reduced dose is selected.
+        self.dose_warning_label = tk.Label(
+            body,
+            text="⚠  Dose reduction will be recorded",
+            font=('Arial', 11), bg=BG, fg='#FF9800', anchor='w',
+        )
+        self._warning_row = row
+        row += 1
+
         # ── Custom dose entry (hidden until Custom selected) ─────────────────
         self.custom_dose_frame = tk.Frame(body, bg=BG)
         self.custom_dose_frame.columnconfigure(0, weight=1)
@@ -206,11 +216,6 @@ class CycleCompletionDialog(tk.Toplevel):
 
 
 
-    def _add_label(self, parent, text):
-        """Pack-based label — used in header only."""
-        tk.Label(parent, text=text, font=('Arial', 12),
-                 bg=BG, fg=FG_MUTED, anchor='w').pack(anchor='w')
-
     def _grid_label(self, parent, text, row):
         """Grid-based label for column 0 of a form row."""
         tk.Label(parent, text=text, font=('Arial', 12),
@@ -255,12 +260,19 @@ class CycleCompletionDialog(tk.Toplevel):
             self.custom_dose_frame.grid_remove()
 
         if is_reduced:
-            # Mark reason as required with red asterisk
-            self.reason_label.config(text="Dose Reason *", fg='#e05555')
+            self.dose_warning_label.grid(
+                row=self._warning_row, column=0, columnspan=2,
+                sticky='w', pady=(0, 8),
+            )
+            # Tint the reason frame background to draw attention to the field.
+            self.reason_frame.configure(bg='#1f1a0d')
+            self.reason_label.config(text="Dose Reason *", fg='#e05555', bg='#1f1a0d')
             self.reason_frame.grid(row=self._reason_row, column=0,
                                    columnspan=2, sticky='ew', pady=(0, 12))
         else:
-            self.reason_label.config(text="Dose Reason", fg=FG_MUTED)
+            self.dose_warning_label.grid_remove()
+            self.reason_frame.configure(bg=BG)
+            self.reason_label.config(text="Dose Reason", fg=FG_MUTED, bg=BG)
             self.reason_frame.grid_remove()
 
     # ── Close behavior ────────────────────────────────────────────────────────
