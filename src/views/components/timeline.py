@@ -1,5 +1,5 @@
 import tkinter as tk
-from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
+from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER, FONT_TITLE, FONT_CYCLE
 
 # Timeline component lives inside a BG_ALT panel — use BG_ALT for all internal frames
 # so there's no dark rectangle cutting into the card background.
@@ -44,7 +44,7 @@ def _add_tooltip(widget: tk.Widget, text: str) -> None:
         tip[0] = tk.Toplevel(widget)
         tip[0].wm_overrideredirect(True)
         tip[0].wm_geometry(f"+{event.x_root + 12}+{event.y_root + 8}")
-        tk.Label(tip[0], text=text, font=('Arial', 12),
+        tk.Label(tip[0], text=text, font=('Arial', FONT_BODY),
                  bg='#ffffe0', fg='#333333',
                  relief='solid', borderwidth=1,
                  padx=8, pady=4).pack()
@@ -111,7 +111,7 @@ class TimelineComponent(tk.Frame):
         """Create the static skeleton of the timeline (rebuilt on refresh)."""
         # Status text row — e.g. "Current: Cycle 3 (AC Phase)"
         self.status_label = tk.Label(
-            self, text="", font=('Arial', 17, 'bold'), bg=_BG, fg=FG, anchor='w'
+            self, text="", font=('Arial', FONT_TITLE, 'bold'), bg=_BG, fg=FG, anchor='w'
         )
         self.status_label.pack(anchor='w', pady=(0, 14))
 
@@ -172,7 +172,7 @@ class TimelineComponent(tk.Frame):
         tk.Label(
             group,
             text=f"{phase_name} Phase",
-            font=('Arial', 16, 'bold'),
+            font=('Arial', FONT_HEADER, 'bold'),
             bg=_BG,
             fg=phase_color,
         ).pack(pady=(10, 0))
@@ -180,7 +180,7 @@ class TimelineComponent(tk.Frame):
         tk.Label(
             group,
             text=drug_name,
-            font=('Arial', 13),
+            font=('Arial', FONT_BODY),
             bg=_BG,
             fg=FG,
         ).pack(pady=(3, 0))
@@ -248,14 +248,14 @@ class TimelineComponent(tk.Frame):
         phase_color  = COLORS['ac_phase'] if cycle_number <= 4 else COLORS['t_phase']
         tk.Frame(box, height=4, bg=phase_color).pack(fill='x')
         tk.Label(box, text=phase_text,
-                 font=('Arial', 11, 'bold'), bg=bg, fg=fg).pack(pady=(2, 0))
+                 font=('Arial', FONT_LABEL, 'bold'), bg=bg, fg=fg).pack(pady=(2, 0))
 
         # Cycle number — prominent centre.
         tk.Label(box, text=str(cycle_number),
-                 font=('Arial', 20, 'bold'), bg=bg, fg=fg).pack()
+                 font=('Arial', FONT_CYCLE, 'bold'), bg=bg, fg=fg).pack()
 
         # Status indicator at bottom — checkmark for completed, text for others.
-        status_font = ('Arial', 17, 'bold') if state == 'completed' else ('Arial', 12)
+        status_font = ('Arial', FONT_TITLE, 'bold') if state == 'completed' else ('Arial', FONT_LABEL)
         status_lbl = tk.Label(box, text=status_text,
                               font=status_font, bg=bg, fg=fg)
         status_lbl.pack(pady=(0, 5))
@@ -269,7 +269,7 @@ class TimelineComponent(tk.Frame):
             and cycle.dose_percent < 100
         )
         if is_modified:
-            mod_badge = tk.Label(box, text='⚠', font=('Arial', 11, 'bold'),
+            mod_badge = tk.Label(box, text='⚠', font=('Arial', FONT_LABEL, 'bold'),
                                  bg=bg, fg=COLORS['modified'])
             mod_badge.place(relx=1.0, rely=0.0, anchor='ne', x=-4, y=6)
 

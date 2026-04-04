@@ -1,6 +1,6 @@
 import tkinter as tk
 from datetime import date
-from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
+from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
 from models import Cycle, add_cycle, update_cycle
 
 
@@ -46,9 +46,9 @@ class CycleCompletionDialog(tk.Toplevel):
         header = tk.Frame(self, bg=BG_ALT, padx=20, pady=16)
         header.pack(fill='x')
         tk.Label(header, text=f"Cycle {self.cycle_number} — {phase} Phase",
-                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG).pack(anchor='w')
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG).pack(anchor='w')
         tk.Label(header, text="Record completion details below.",
-                 font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED).pack(anchor='w', pady=(4, 0))
+                 font=('Arial', FONT_LABEL), bg=BG_ALT, fg=FG_MUTED).pack(anchor='w', pady=(4, 0))
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
@@ -62,7 +62,7 @@ class CycleCompletionDialog(tk.Toplevel):
         if self.cycle and self.cycle.actual_date:
             self.date_var.set(str(self.cycle.actual_date))
         self.date_entry = tk.Entry(body, textvariable=self.date_var,
-                                   font=('Arial', 13), bg=BG_ALT, fg=FG,
+                                   font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
                                    insertbackground=FG, relief='flat',
                                    highlightbackground=SEPARATOR, highlightthickness=1)
         self.date_entry.pack(fill='x', pady=(4, 14))
@@ -79,7 +79,7 @@ class CycleCompletionDialog(tk.Toplevel):
 
         for label, value in [('100%', '100'), ('85%', '85'), ('75%', '75'), ('50%', '50'), ('Custom', 'custom')]:
             rb = tk.Radiobutton(dose_row, text=label, variable=self.dose_var, value=value,
-                                font=('Arial', 12), bg=BG, fg=FG,
+                                font=('Arial', FONT_LABEL), bg=BG, fg=FG,
                                 selectcolor=BG_ALT, activebackground=BG, activeforeground=FG,
                                 command=self._on_dose_change)
             rb.pack(side='left', padx=(0, 12))
@@ -91,7 +91,7 @@ class CycleCompletionDialog(tk.Toplevel):
         if self.cycle and self.cycle.dose_percent and int(self.cycle.dose_percent) not in (100, 85, 75, 50):
             self.custom_dose_var.set(str(int(self.cycle.dose_percent)))
         tk.Entry(self.custom_dose_frame, textvariable=self.custom_dose_var,
-                 font=('Arial', 13), bg=BG_ALT, fg=FG, insertbackground=FG,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG, insertbackground=FG,
                  relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
                  width=8).pack(anchor='w', pady=(4, 0))
 
@@ -106,12 +106,12 @@ class CycleCompletionDialog(tk.Toplevel):
         self.reason_var = tk.StringVar(value=self.cycle.dose_reason if self.cycle and self.cycle.dose_reason else REASONS[0])
         from tkinter import ttk
         reason_menu = ttk.Combobox(self.reason_frame, textvariable=self.reason_var,
-                                   values=REASONS, state='readonly', font=('Arial', 12))
+                                   values=REASONS, state='readonly', font=('Arial', FONT_LABEL))
         reason_menu.pack(fill='x', pady=(4, 0))
 
         # Notes
         self._add_label(body, "Notes (optional)")
-        self.notes_text = tk.Text(body, height=4, font=('Arial', 12),
+        self.notes_text = tk.Text(body, height=4, font=('Arial', FONT_LABEL),
                                   bg=BG_ALT, fg=FG, insertbackground=FG,
                                   relief='flat', wrap='word',
                                   highlightbackground=SEPARATOR, highlightthickness=1)
@@ -123,7 +123,7 @@ class CycleCompletionDialog(tk.Toplevel):
         self._on_dose_change()
 
         # Inline error label
-        self.error_label = tk.Label(body, text='', font=('Arial', 11),
+        self.error_label = tk.Label(body, text='', font=('Arial', FONT_HINT),
                                     bg=BG, fg='#e05555', anchor='w')
         self.error_label.pack(anchor='w', pady=(8, 0))
 
@@ -133,12 +133,12 @@ class CycleCompletionDialog(tk.Toplevel):
         btn_row = tk.Frame(self, bg=BG, padx=24, pady=16)
         btn_row.pack(fill='x')
 
-        cancel = tk.Label(btn_row, text="Cancel", font=('Arial', 13),
+        cancel = tk.Label(btn_row, text="Cancel", font=('Arial', FONT_BODY),
                           bg=BG, fg=FG_MUTED, cursor='hand2', padx=10)
         cancel.pack(side='right')
         cancel.bind('<Button-1>', lambda e: self.destroy())
 
-        save = tk.Label(btn_row, text="Mark Complete", font=('Arial', 13, 'bold'),
+        save = tk.Label(btn_row, text="Mark Complete", font=('Arial', FONT_BODY, 'bold'),
                         bg='#388E3C', fg='#FFFFFF', cursor='hand2', padx=14, pady=6)
         save.pack(side='right', padx=(0, 12))
         save.bind('<Button-1>', lambda e: self._on_save())
@@ -159,7 +159,7 @@ class CycleCompletionDialog(tk.Toplevel):
             self.reason_frame.pack_forget()
 
     def _add_label(self, parent, text):
-        tk.Label(parent, text=text, font=('Arial', 12),
+        tk.Label(parent, text=text, font=('Arial', FONT_LABEL),
                  bg=BG, fg=FG_MUTED, anchor='w').pack(anchor='w')
 
     def _center(self):
@@ -272,8 +272,8 @@ class CycleDetailDialog(tk.Toplevel):
         header = tk.Frame(self, bg=BG_ALT, padx=20, pady=16)
         header.pack(fill='x')
         tk.Label(header, text=f"Cycle {c.cycle_number} — {phase} Phase",
-                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG).pack(anchor='w')
-        tk.Label(header, text="Completed", font=('Arial', 12),
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG).pack(anchor='w')
+        tk.Label(header, text="Completed", font=('Arial', FONT_LABEL),
                  bg=BG_ALT, fg='#81c784').pack(anchor='w', pady=(4, 0))
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -291,12 +291,12 @@ class CycleDetailDialog(tk.Toplevel):
         btn_row = tk.Frame(self, bg=BG, padx=24, pady=16)
         btn_row.pack(fill='x')
 
-        close = tk.Label(btn_row, text="Close", font=('Arial', 13),
+        close = tk.Label(btn_row, text="Close", font=('Arial', FONT_BODY),
                          bg=BG, fg=FG_MUTED, cursor='hand2', padx=10)
         close.pack(side='right')
         close.bind('<Button-1>', lambda e: self.destroy())
 
-        edit = tk.Label(btn_row, text="Edit", font=('Arial', 13, 'bold'),
+        edit = tk.Label(btn_row, text="Edit", font=('Arial', FONT_BODY, 'bold'),
                         bg='#1a3a5c', fg='#90caf9', cursor='hand2', padx=14, pady=6)
         edit.pack(side='right', padx=(0, 12))
         edit.bind('<Button-1>', lambda e: self._open_edit())
@@ -304,9 +304,9 @@ class CycleDetailDialog(tk.Toplevel):
     def _row(self, parent, label, value):
         row = tk.Frame(parent, bg=BG)
         row.pack(fill='x', pady=4)
-        tk.Label(row, text=f"{label}:", font=('Arial', 12),
+        tk.Label(row, text=f"{label}:", font=('Arial', FONT_LABEL),
                  bg=BG, fg=FG_MUTED, width=16, anchor='w').pack(side='left')
-        tk.Label(row, text=value, font=('Arial', 12),
+        tk.Label(row, text=value, font=('Arial', FONT_LABEL),
                  bg=BG, fg=FG, anchor='w').pack(side='left')
 
     def _center(self):

@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from utils import BG, SEPARATOR, FG, FG_MUTED
+from utils import BG, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
 
 
 class AddPatientDialog(tk.Toplevel):
@@ -40,9 +40,9 @@ class AddPatientDialog(tk.Toplevel):
 
     def _build_ui(self):
         # ── Title bar ──────────────────────────────────────────────────────────
-        header = tk.Frame(self, bg=BG, padx=16, pady=10)
+        header = tk.Frame(self, bg=BG, padx=20, pady=16)
         header.pack(fill='x')
-        tk.Label(header, text="Add Patient", font=('Arial', 13),
+        tk.Label(header, text="Add Patient", font=('Arial', FONT_HEADER, 'bold'),
                  bg=BG, fg=FG).pack(side='left')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -66,7 +66,7 @@ class AddPatientDialog(tk.Toplevel):
 
         for row_idx, (key, label, widget_type, extra) in enumerate(rows):
             # Label.
-            tk.Label(form, text=label, font=('Arial', 11),
+            tk.Label(form, text=label, font=('Arial', FONT_BODY),
                      bg=BG, fg=FG, anchor='w').grid(
                 row=row_idx, column=0, sticky='w', pady=6, padx=(0, 16))
 
@@ -75,13 +75,13 @@ class AddPatientDialog(tk.Toplevel):
                 var = tk.StringVar()
                 widget = ttk.Combobox(form, textvariable=var,
                                       values=extra, state='readonly',
-                                      font=('Arial', 11))
+                                      font=('Arial', FONT_BODY))
                 widget.current(0)
                 self._fields[key] = var
             else:
                 var = tk.StringVar()
                 widget = tk.Entry(form, textvariable=var,
-                                  font=('Arial', 11),
+                                  font=('Arial', FONT_BODY),
                                   bg='#2e2e2e', fg=FG,
                                   insertbackground=FG,
                                   relief='flat', bd=4)
@@ -95,7 +95,7 @@ class AddPatientDialog(tk.Toplevel):
             widget.grid(row=row_idx, column=1, sticky='ew', pady=6)
 
         # ── Inline error label ─────────────────────────────────────────────────
-        self._error_label = tk.Label(form, text='', font=('Arial', 10),
+        self._error_label = tk.Label(form, text='', font=('Arial', FONT_HINT),
                                      bg=BG, fg='#e05555',
                                      justify='left', wraplength=360, anchor='w')
         self._error_label.grid(row=len(rows), column=0, columnspan=2,

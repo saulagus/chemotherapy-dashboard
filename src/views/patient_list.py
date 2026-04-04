@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from models import Patient, get_cycles_by_patient, delete_patient
-from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED
+from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED, FONT_BODY, FONT_TITLE
 
 
 class PatientListView(tk.Frame):
@@ -17,20 +17,20 @@ class PatientListView(tk.Frame):
         self.configure(bg=BG)
 
         # Header bar.
-        header = tk.Frame(self, bg=BG, pady=10, padx=16)
+        header = tk.Frame(self, bg=BG, pady=14, padx=24)
         header.pack(fill='x')
 
         tk.Label(header, text="AC-T Chemotherapy Dashboard",
-                 font=('Arial', 13), bg=BG, fg=FG).pack(side='left')
+                 font=('Arial', FONT_TITLE), bg=BG, fg=FG).pack(side='left')
 
         add_btn = tk.Label(header, text="+ Add Patient",
-                           font=('Arial', 11), bg=BG, fg=FG,
+                           font=('Arial', FONT_BODY), bg=BG, fg=FG,
                            cursor='hand2', padx=8, pady=4)
         add_btn.pack(side='right')
         add_btn.bind('<Button-1>', lambda e: self._on_add_patient())
 
         remove_btn = tk.Label(header, text="- Remove Patient",
-                              font=('Arial', 11), bg=BG, fg='#e05555',
+                              font=('Arial', FONT_BODY), bg=BG, fg='#e05555',
                               cursor='hand2', padx=8, pady=4)
         remove_btn.pack(side='right')
         remove_btn.bind('<Button-1>', lambda e: self._on_remove_patient())
@@ -42,24 +42,21 @@ class PatientListView(tk.Frame):
         content = tk.Frame(self, bg=BG, padx=16, pady=8)
         content.pack(fill='both', expand=True)
 
-        tk.Label(content, text="Patients", font=('Arial', 11),
-                 bg=BG, fg=FG_MUTED).pack(anchor='w', pady=(0, 8))
-
         # Treeview + vertical scrollbar in a shared frame.
         tree_frame = tk.Frame(content, bg=BG)
-        tree_frame.pack(fill='both', expand=True)
+        tree_frame.pack(fill='both', expand=True, pady=(8, 0))
 
-        scrollbar = ttk.Scrollbar(tree_frame, orient='vertical')
-        scrollbar.pack(side='right', fill='y')
+        self._scrollbar = ttk.Scrollbar(tree_frame, orient='vertical')
+        self._scrollbar.grid(row=0, column=1, sticky='ns')
 
         self.tree = ttk.Treeview(
             tree_frame,
             columns=('id', 'name', 'current_cycle', 'protocol', 'age', 'diagnosis_date'),
             show='headings',
-            height=20,            # visible rows before scrolling kicks in
-            yscrollcommand=scrollbar.set,
+            height=20,
+            yscrollcommand=self._on_yscroll,
         )
-        scrollbar.config(command=self.tree.yview)
+        self._scrollbar.config(command=self.tree.yview)
 
         # Column headings.
         self.tree.heading('id',             text='Patient ID')
@@ -77,32 +74,78 @@ class PatientListView(tk.Frame):
         self.tree.column('age',            width=80,  anchor='center', stretch=False)
         self.tree.column('diagnosis_date', width=140, anchor='center', stretch=False)
 
-        self.tree.pack(fill='both', expand=True)
+        self.tree.grid(row=0, column=0, sticky='nsew')
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
+
+        # Hide scrollbar initially — shown only when content overflows.
+        self._scrollbar.grid_remove()
+        tree_frame.bind('<Configure>', lambda e: self.after(0, self._sync_scrollbar))
 
         # Alternating row stripe colours.
         self.tree.tag_configure('even', background=BG_ALT)
         self.tree.tag_configure('odd',  background=BG_ROW_ODD)
+        self.tree.tag_configure('hover', background='#2a3152')
 
-        # Double-click a row to open that patient's dashboard.
+        # Double-click to open dashboard; Motion/Leave for hover effect.
         self.tree.bind('<Double-1>', self._on_row_double_click)
+        self.tree.bind('<Motion>', self._on_row_hover)
+        self.tree.bind('<Leave>', self._on_row_leave)
+        self._hovered_row = None
+        self._row_stripes = {}  # row_id -> 'even' | 'odd'
 
         # Empty-state label overlaid on the tree when no patients exist.
         self.empty_label = tk.Label(
             tree_frame,
             text="No patients found.\nUse 'Add Patient' to create one.",
-            font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED, justify='center',
+            font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED, justify='center',
         )
+
+    def _on_yscroll(self, first: str, last: str) -> None:
+        """Update scrollbar position and show/hide based on content overflow."""
+        self._scrollbar.set(first, last)
+        if float(first) <= 0.0 and float(last) >= 1.0:
+            self._scrollbar.grid_remove()
+        else:
+            self._scrollbar.grid()
+
+    def _sync_scrollbar(self) -> None:
+        """Force scrollbar visibility check after layout has settled."""
+        first, last = self.tree.yview()
+        self._on_yscroll(str(first), str(last))
+
+    def _on_row_hover(self, event):
+        """Highlight the row under the cursor."""
+        row = self.tree.identify_row(event.y)
+        if row == self._hovered_row:
+            return
+        # Restore previous row to its original stripe (no competing tags).
+        if self._hovered_row and self.tree.exists(self._hovered_row):
+            stripe = self._row_stripes.get(self._hovered_row, 'even')
+            self.tree.item(self._hovered_row, tags=(self._hovered_row, stripe))
+        # Replace stripe with hover so it's the only background tag.
+        if row:
+            self.tree.item(row, tags=(row, 'hover'))
+        self._hovered_row = row or None
+
+    def _on_row_leave(self, event):
+        """Remove hover highlight when the mouse leaves the treeview."""
+        if self._hovered_row and self.tree.exists(self._hovered_row):
+            stripe = self._row_stripes.get(self._hovered_row, 'even')
+            self.tree.item(self._hovered_row, tags=(self._hovered_row, stripe))
+        self._hovered_row = None
 
     def _load_patients(self):
         """Fetch all patients from the database and populate the Treeview."""
         # Clear all existing rows in one call before reloading.
         self.tree.delete(*self.tree.get_children())
+        self._row_stripes.clear()
 
         patients = Patient.get_all(self.app.conn)
 
         if not patients:
-            # Show the empty-state message centred over the tree.
             self.empty_label.place(relx=0.5, rely=0.5, anchor='center')
+            self.after(0, self._sync_scrollbar)
             return
 
         # Hide the empty-state label now that we have rows.
@@ -119,6 +162,7 @@ class PatientListView(tk.Frame):
 
             # 'even'/'odd' drives the alternating stripe; patient.id enables tag-based id lookup.
             stripe = 'even' if index % 2 == 0 else 'odd'
+            self._row_stripes[str(patient.id)] = stripe
             self.tree.insert('', 'end', iid=str(patient.id),
                              tags=(str(patient.id), stripe),
                              values=(
@@ -129,6 +173,8 @@ class PatientListView(tk.Frame):
                                  patient.age if patient.age is not None else '-',
                                  str(patient.diagnosis_date) if patient.diagnosis_date else '-',
                              ))
+
+        self.after(0, self._sync_scrollbar)
 
     def _on_row_double_click(self, event):
         """Handle double-click on a Treeview row — navigate to that patient's dashboard."""

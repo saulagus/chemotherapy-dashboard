@@ -2,7 +2,7 @@ import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date
-from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
+from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
 from models import Cycle, add_cycle, update_cycle
 
 log = logging.getLogger(__name__)
@@ -64,9 +64,9 @@ class CycleCompletionDialog(tk.Toplevel):
         header = tk.Frame(self, bg=BG_ALT, padx=20, pady=16)
         header.pack(fill='x')
         tk.Label(header, text=f"Cycle {self.cycle_number} — {phase} Phase",
-                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG).pack(anchor='w')
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG).pack(anchor='w')
         tk.Label(header, text="Record completion details below.",
-                 font=('Arial', 12), bg=BG_ALT, fg=FG_MUTED).pack(anchor='w', pady=(4, 0))
+                 font=('Arial', FONT_LABEL), bg=BG_ALT, fg=FG_MUTED).pack(anchor='w', pady=(4, 0))
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
@@ -76,12 +76,12 @@ class CycleCompletionDialog(tk.Toplevel):
         btn_row = tk.Frame(self, bg=BG, padx=24, pady=16)
         btn_row.pack(side='bottom', fill='x')
 
-        cancel = tk.Label(btn_row, text="Cancel", font=('Arial', 13),
+        cancel = tk.Label(btn_row, text="Cancel", font=('Arial', FONT_BODY),
                           bg=BG, fg=FG_MUTED, cursor='hand2', padx=10)
         cancel.pack(side='right')
         cancel.bind('<Button-1>', lambda e: self._confirm_cancel())
 
-        save = tk.Label(btn_row, text="Mark Complete", font=('Arial', 13, 'bold'),
+        save = tk.Label(btn_row, text="Mark Complete", font=('Arial', FONT_BODY, 'bold'),
                         bg='#388E3C', fg='#FFFFFF', cursor='hand2', padx=14, pady=6)
         save.pack(side='right', padx=(0, 12))
         save.bind('<Button-1>', lambda e: self._on_save())
@@ -99,14 +99,14 @@ class CycleCompletionDialog(tk.Toplevel):
         if self.cycle and self.cycle.actual_date:
             self.date_var.set(str(self.cycle.actual_date))
         self.date_entry = tk.Entry(body, textvariable=self.date_var,
-                 font=('Arial', 13), bg=BG_ALT, fg=FG,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
                  insertbackground=FG, relief='flat',
                  highlightbackground=SEPARATOR, highlightthickness=1)
         self.date_entry.grid(row=row, column=1, sticky='ew', pady=(0, 12))
         row += 1
 
         # Format hint
-        tk.Label(body, text="YYYY-MM-DD", font=('Arial', 10), bg=BG, fg=FG_MUTED,
+        tk.Label(body, text="YYYY-MM-DD", font=('Arial', FONT_HINT), bg=BG, fg=FG_MUTED,
                  ).grid(row=row, column=1, sticky='w', pady=(0, 6))
         row += 1
 
@@ -123,7 +123,7 @@ class CycleCompletionDialog(tk.Toplevel):
 
         self.dose_combo = ttk.Combobox(body, textvariable=self.dose_var,
                                        values=DOSE_OPTIONS, state='readonly',
-                                       font=('Arial', 13))
+                                       font=('Arial', FONT_BODY))
         self.dose_combo.grid(row=row, column=1, sticky='ew', pady=(0, 12))
         self.dose_combo.bind('<<ComboboxSelected>>', lambda e: self._on_dose_change())
         row += 1
@@ -133,7 +133,7 @@ class CycleCompletionDialog(tk.Toplevel):
         self.dose_warning_label = tk.Label(
             body,
             text="⚠  Dose reduction will be recorded",
-            font=('Arial', 11), bg=BG, fg='#FF9800', anchor='w',
+            font=('Arial', FONT_LABEL), bg=BG, fg='#FF9800', anchor='w',
         )
         self._warning_row = row
         row += 1
@@ -146,7 +146,7 @@ class CycleCompletionDialog(tk.Toplevel):
         if self.cycle and self.cycle.dose_percent and int(self.cycle.dose_percent) not in (100, 85, 75, 50):
             self.custom_dose_var.set(str(int(self.cycle.dose_percent)))
         self.custom_dose_entry = tk.Entry(self.custom_dose_frame, textvariable=self.custom_dose_var,
-                 font=('Arial', 13), bg=BG_ALT, fg=FG, insertbackground=FG,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG, insertbackground=FG,
                  relief='flat', highlightbackground=SEPARATOR, highlightthickness=1,
                  width=8)
         self.custom_dose_entry.grid(row=0, column=1, sticky='w', pady=(0, 12))
@@ -165,10 +165,10 @@ class CycleCompletionDialog(tk.Toplevel):
         self.reason_var = tk.StringVar(value=initial_reason)
 
         self.reason_label = tk.Label(self.reason_frame, text="Dose Reason",
-                                     font=('Arial', 12), bg=BG, fg=FG_MUTED, anchor='w')
+                                     font=('Arial', FONT_LABEL), bg=BG, fg=FG_MUTED, anchor='w')
         self.reason_label.grid(row=0, column=0, sticky='nw', padx=(0, 16), pady=(0, 12))
         self.reason_combo = ttk.Combobox(self.reason_frame, textvariable=self.reason_var,
-                                         values=DOSE_REASONS, state='readonly', font=('Arial', 12))
+                                         values=DOSE_REASONS, state='readonly', font=('Arial', FONT_BODY))
         self.reason_combo.grid(row=0, column=1, sticky='ew', pady=(0, 6))
         self.reason_combo.bind('<<ComboboxSelected>>', lambda e: self._on_reason_change())
 
@@ -178,7 +178,7 @@ class CycleCompletionDialog(tk.Toplevel):
         self._grid_label(self.other_reason_frame, "Please specify", 0)
         self.other_reason_var = tk.StringVar(value=saved_reason if saved_reason not in DOSE_REASONS else '')
         self.other_reason_entry = tk.Entry(self.other_reason_frame, textvariable=self.other_reason_var,
-                 font=('Arial', 12), bg=BG_ALT, fg=FG, insertbackground=FG,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG, insertbackground=FG,
                  relief='flat', highlightbackground=SEPARATOR, highlightthickness=1)
         self.other_reason_entry.grid(row=0, column=1, sticky='ew', pady=(0, 8))
         # Same deferred-grid pattern as custom_dose_frame above — starts hidden,
@@ -189,11 +189,11 @@ class CycleCompletionDialog(tk.Toplevel):
         # ── Notes ────────────────────────────────────────────────────────────
         self._grid_label(body, "Notes (optional)", row)
         self.char_count_label = tk.Label(body, text="0 / 500",
-                                         font=('Arial', 10), bg=BG, fg=FG_MUTED, anchor='e')
+                                         font=('Arial', FONT_HINT), bg=BG, fg=FG_MUTED, anchor='e')
         self.char_count_label.grid(row=row, column=1, sticky='e')
         row += 1
 
-        self.notes_text = tk.Text(body, height=4, font=('Arial', 12),
+        self.notes_text = tk.Text(body, height=4, font=('Arial', FONT_BODY),
                                   bg=BG_ALT, fg=FG, insertbackground=FG,
                                   relief='flat', wrap='word',
                                   highlightbackground=SEPARATOR, highlightthickness=1)
@@ -221,7 +221,7 @@ class CycleCompletionDialog(tk.Toplevel):
 
     def _grid_label(self, parent, text, row):
         """Grid-based label for column 0 of a form row."""
-        tk.Label(parent, text=text, font=('Arial', 12),
+        tk.Label(parent, text=text, font=('Arial', FONT_LABEL),
                  bg=BG, fg=FG_MUTED, anchor='w',
                  ).grid(row=row, column=0, sticky='nw', padx=(0, 16), pady=(0, 12))
 

@@ -1,6 +1,17 @@
 from tkinter import messagebox
 from tkinter import ttk
 
+# ── Font size scale ───────────────────────────────────────────────────────────
+# Single source of truth — change these to rescale the entire UI.
+FONT_HINT   = 10   # Format hints, character counters
+FONT_LABEL  = 12   # Form labels, secondary/muted text
+FONT_BODY   = 13   # Body text, inputs, buttons, table content
+FONT_DETAIL = 15   # Patient detail row, back button
+FONT_HEADER = 16   # Section headers, dialog titles
+FONT_TITLE  = 17   # Page-level nav titles, status labels
+FONT_CYCLE  = 20   # Cycle number inside timeline box
+FONT_NAME   = 24   # Patient hero name
+
 # ── Dark theme colour palette ─────────────────────────────────────────────────
 BG          = '#12151c'   # main background — deep blue-slate
 BG_ALT      = '#1a1e2a'   # card / panel surfaces
@@ -27,14 +38,14 @@ def apply_dark_theme(style: ttk.Style) -> None:
         fieldbackground=BG_ALT,
         borderwidth=0,
         rowheight=38,
-        font=('Arial', 13),
+        font=('Arial', FONT_BODY),
     )
     style.configure('Treeview.Heading',
         background=BG_HEADER,
         foreground=FG_MUTED,
         borderwidth=0,
         relief='flat',
-        font=('Arial', 12),
+        font=('Arial', FONT_LABEL),
     )
     style.map('Treeview',
         background=[('selected', SELECTED)],

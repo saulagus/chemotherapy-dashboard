@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED
+from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_LABEL, FONT_BODY, FONT_DETAIL, FONT_HEADER, FONT_TITLE, FONT_NAME
 from models import Patient, get_patient_by_db_id, get_cycles_by_patient, get_labs_by_patient
 from views.components.timeline import TimelineComponent
 
@@ -24,11 +24,11 @@ class DashboardView(tk.Frame):
         nav.pack(fill='x')
 
         self.title_label = tk.Label(nav, text="Patient Dashboard",
-                                    font=('Arial', 17), bg=BG, fg=FG)
+                                    font=('Arial', FONT_TITLE), bg=BG, fg=FG)
         self.title_label.pack(side='left')
 
         back_btn = tk.Label(nav, text="<- Back",
-                            font=('Arial', 15), bg=BG, fg=FG,
+                            font=('Arial', FONT_BODY), bg=BG, fg=FG,
                             cursor='hand2', padx=10, pady=4)
         back_btn.pack(side='right')
         back_btn.bind('<Button-1>', lambda e: self._go_back())
@@ -41,7 +41,7 @@ class DashboardView(tk.Frame):
 
         # Patient name — large and prominent.
         self.name_label = tk.Label(self.header_frame, text="",
-                                   font=('Arial', 24, 'bold'), bg=BG_ALT, fg=FG,
+                                   font=('Arial', FONT_NAME, 'bold'), bg=BG_ALT, fg=FG,
                                    anchor='w')
         self.name_label.pack(anchor='w')
 
@@ -50,21 +50,21 @@ class DashboardView(tk.Frame):
         detail_row.pack(anchor='w', pady=(6, 0))
 
         self.id_label = tk.Label(detail_row, text="",
-                                 font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED)
+                                 font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED)
         self.id_label.pack(side='left')
 
         tk.Label(detail_row, text="  ·  ",
-                 font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+                 font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
 
         self.protocol_label = tk.Label(detail_row, text="",
-                                       font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED)
+                                       font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED)
         self.protocol_label.pack(side='left')
 
         tk.Label(detail_row, text="  ·  ",
-                 font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+                 font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
 
         self.start_date_label = tk.Label(detail_row, text="",
-                                         font=('Arial', 15), bg=BG_ALT, fg=FG_MUTED)
+                                         font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED)
         self.start_date_label.pack(side='left')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -72,16 +72,16 @@ class DashboardView(tk.Frame):
         # ── Main content area ──────────────────────────────────────────────────
         content = tk.Frame(self, bg=BG, padx=16, pady=16)
         content.pack(fill='both', expand=True)
-        content.columnconfigure(0, weight=3)
-        content.columnconfigure(1, weight=1)
-        content.rowconfigure(0, weight=1)
+        content.columnconfigure(0, weight=1)
+        content.rowconfigure(0, weight=1)  # timeline grows to fill space
+        content.rowconfigure(1, weight=0)  # labs takes only what it needs
 
         # ── Timeline component ─────────────────────────────────────────────────
         timeline_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
-        timeline_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
+        timeline_frame.grid(row=0, column=0, sticky='nsew', pady=(0, 8))
 
         tk.Label(timeline_frame, text="Treatment Timeline",
-                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG,
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG,
                  anchor='w').pack(anchor='w')
         tk.Frame(timeline_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
 
@@ -90,16 +90,15 @@ class DashboardView(tk.Frame):
 
         # ── Labs placeholder ───────────────────────────────────────────────────
         labs_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
-        labs_frame.grid(row=0, column=1, sticky='nsew')
+        labs_frame.grid(row=1, column=0, sticky='ew')
 
         tk.Label(labs_frame, text="Latest Labs",
-                 font=('Arial', 16, 'bold'), bg=BG_ALT, fg=FG,
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG,
                  anchor='w').pack(anchor='w')
         tk.Frame(labs_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
         tk.Label(labs_frame,
-                 text="Latest Labs\n(Coming in Sprint 3)",
-                 font=('Arial', 14), bg=BG_ALT, fg=FG_MUTED,
-                 justify='center').place(relx=0.5, rely=0.5, anchor='center')
+                 text="Coming in Sprint 3",
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED).pack(pady=12)
 
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
