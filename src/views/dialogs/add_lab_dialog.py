@@ -36,6 +36,7 @@ class AddLabDialog(tk.Toplevel):
 
         self._build_ui()
         self._center()
+        self.geometry('420x560')
         self.protocol('WM_DELETE_WINDOW', self._confirm_cancel)
         self.bind('<Return>', lambda e: self._on_save())
         self.bind('<Escape>', lambda e: self._confirm_cancel())
@@ -232,6 +233,8 @@ class AddLabDialog(tk.Toplevel):
                 lab_date = date.fromisoformat(data['lab_date'])
                 if lab_date > date.today():
                     errors.append("Lab date cannot be in the future.")
+                elif lab_date.year < 2000:
+                    errors.append("Lab date seems invalid — year must be 2000 or later.")
             except ValueError:
                 errors.append("Invalid date — use YYYY-MM-DD format.")
 
@@ -264,6 +267,26 @@ class AddLabDialog(tk.Toplevel):
 
         return errors
 
+    def _get_warnings(self) -> list[str]:
+        """Return soft warnings for clinically unusual but not impossible values."""
+        warnings = []
+        data = self.get_form_data()
+        checks = [
+            ('anc',       'ANC',        20.0),
+            ('wbc',       'WBC',        50.0),
+            ('platelets', 'Platelets', 1000.0),
+            ('hgb',       'Hemoglobin', 20.0),
+        ]
+        for key, label, limit in checks:
+            val = data[key]
+            if val:
+                try:
+                    if float(val) > limit:
+                        warnings.append(f"{label} value of {val} seems unusually high.")
+                except ValueError:
+                    pass  # Already caught by validate()
+        return warnings
+
     def _on_save(self):
         errors = self.validate()
         if errors:
@@ -283,6 +306,13 @@ class AddLabDialog(tk.Toplevel):
             return
 
         self.error_label.config(text="")
+
+        warnings = self._get_warnings()
+        if warnings:
+            msg = '\n'.join(f'• {w}' for w in warnings) + '\n\nSave anyway?'
+            if not messagebox.askyesno('Unusual Values', msg, parent=self):
+                return
+
         data = self.get_form_data()
 
         try:

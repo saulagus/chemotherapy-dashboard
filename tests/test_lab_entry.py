@@ -60,6 +60,12 @@ def test_future_date_returns_error(dialog):
     errors = dialog.validate()
     assert any('future' in e.lower() for e in errors)
 
+def test_date_before_2000_returns_error(dialog):
+    dialog.date_var.set('1999-12-31')
+    dialog.anc_var.set('1.8')
+    errors = dialog.validate()
+    assert any('2000' in e for e in errors)
+
 def test_today_date_is_valid(dialog):
     dialog.date_var.set(str(date.today()))
     dialog.anc_var.set('1.8')
@@ -154,6 +160,44 @@ def test_all_fields_valid_no_errors(dialog):
     errors = dialog.validate()
     assert errors == []
 
+
+# ── Range warnings ───────────────────────────────────────────────────────────
+
+def test_high_anc_triggers_warning(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('25.0')
+    warnings = dialog._get_warnings()
+    assert any('ANC' in w for w in warnings)
+
+def test_high_wbc_triggers_warning(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('1.8')
+    dialog.wbc_var.set('60.0')
+    warnings = dialog._get_warnings()
+    assert any('WBC' in w for w in warnings)
+
+def test_high_platelets_triggers_warning(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('1.8')
+    dialog.platelets_var.set('1500')
+    warnings = dialog._get_warnings()
+    assert any('Platelets' in w for w in warnings)
+
+def test_high_hemoglobin_triggers_warning(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('1.8')
+    dialog.hgb_var.set('22.0')
+    warnings = dialog._get_warnings()
+    assert any('Hemoglobin' in w for w in warnings)
+
+def test_normal_values_no_warnings(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('1.8')
+    dialog.wbc_var.set('5.2')
+    dialog.platelets_var.set('200')
+    dialog.hgb_var.set('13.5')
+    warnings = dialog._get_warnings()
+    assert warnings == []
 
 # ── Save flow ────────────────────────────────────────────────────────────────
 
