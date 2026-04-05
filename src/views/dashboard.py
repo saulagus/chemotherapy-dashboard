@@ -98,7 +98,8 @@ class DashboardView(tk.Frame):
         self.timeline.pack(anchor='w', pady=(0, 8))
 
         # ── Latest labs panel ──────────────────────────────────────────────────
-        self.labs_panel = LatestLabsPanel(content, self.app.conn)
+        self.labs_panel = LatestLabsPanel(content, self.app.conn,
+                                          on_add_labs=self._on_add_labs)
         self.labs_panel.grid(row=1, column=0, sticky='ew')
 
     def set_patient(self, patient_id):

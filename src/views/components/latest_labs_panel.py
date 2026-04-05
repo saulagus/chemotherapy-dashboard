@@ -16,11 +16,12 @@ class LatestLabsPanel(tk.Frame):
     refresh()                — reload latest lab from DB and redraw
     """
 
-    def __init__(self, parent, conn, patient_id=None, **kwargs):
+    def __init__(self, parent, conn, patient_id=None, on_add_labs=None, **kwargs):
         super().__init__(parent, bg=BG_ALT, **kwargs)
-        self.conn       = conn
-        self.patient_id = patient_id
-        self._content   = None  # holds the current inner frame
+        self.conn         = conn
+        self.patient_id   = patient_id
+        self.on_add_labs  = on_add_labs
+        self._content     = None  # holds the current inner frame
 
         self._build_header()
         self.refresh()
@@ -60,7 +61,16 @@ class LatestLabsPanel(tk.Frame):
     def _show_empty(self, message: str):
         tk.Label(self._content, text=message,
                  font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
-                 justify='left', anchor='w').pack(anchor='w', pady=4)
+                 justify='left', anchor='w').pack(anchor='w', pady=(4, 8))
+
+        if self.on_add_labs is not None:
+            btn = tk.Label(self._content, text="+ Add Labs",
+                           font=('Arial', FONT_LABEL, 'bold'),
+                           bg=BG_ALT, fg='#4CAF50', cursor='hand2')
+            btn.pack(anchor='w')
+            btn.bind('<Button-1>', lambda e: self.on_add_labs())
+            btn.bind('<Enter>', lambda e: btn.config(fg='#81C784'))
+            btn.bind('<Leave>', lambda e: btn.config(fg='#4CAF50'))
 
     def _show_lab(self, lab):
         # ── Date row ──────────────────────────────────────────────────────────
