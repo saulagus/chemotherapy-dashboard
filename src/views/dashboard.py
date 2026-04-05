@@ -1,8 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
-from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_LABEL, FONT_BODY, FONT_DETAIL, FONT_HEADER, FONT_TITLE, FONT_NAME
+from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
+                   FONT_LABEL, FONT_BODY, FONT_DETAIL,
+                   FONT_HEADER, FONT_TITLE, FONT_NAME)
 from models import Patient, get_patient_by_db_id, get_cycles_by_patient, get_labs_by_patient
 from views.components.timeline import TimelineComponent
+from views.components.latest_labs_panel import LatestLabsPanel
 
 
 class DashboardView(tk.Frame):
@@ -94,17 +97,9 @@ class DashboardView(tk.Frame):
         self.timeline = TimelineComponent(timeline_frame, self.app)
         self.timeline.pack(anchor='w', pady=(0, 8))
 
-        # ── Labs placeholder ───────────────────────────────────────────────────
-        labs_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
-        labs_frame.grid(row=1, column=0, sticky='ew')
-
-        tk.Label(labs_frame, text="Latest Labs",
-                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG,
-                 anchor='w').pack(anchor='w')
-        tk.Frame(labs_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
-        tk.Label(labs_frame,
-                 text="Coming in Sprint 3",
-                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED).pack(pady=12)
+        # ── Latest labs panel ──────────────────────────────────────────────────
+        self.labs_panel = LatestLabsPanel(content, self.app.conn)
+        self.labs_panel.grid(row=1, column=0, sticky='ew')
 
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
@@ -112,6 +107,7 @@ class DashboardView(tk.Frame):
         self.patient = get_patient_by_db_id(self.app.conn, patient_id) if patient_id else None
         if patient_id:
             self.timeline.load_patient(patient_id)
+            self.labs_panel.load_patient(patient_id)
         self.refresh()
 
     def refresh(self):
@@ -134,8 +130,8 @@ class DashboardView(tk.Frame):
         if self.patient_id is None:
             return
         from views.dialogs.add_lab_dialog import AddLabDialog
-        dialog = AddLabDialog(self.winfo_toplevel(), self.app.conn, self.patient_id)
-        self.wait_window(dialog)
+        AddLabDialog(self.winfo_toplevel(), self.app.conn, self.patient_id,
+                     on_save=self.labs_panel.refresh)
 
     def _go_back(self):
         from views.patient_list import PatientListView
