@@ -33,6 +33,12 @@ class DashboardView(tk.Frame):
         back_btn.pack(side='right')
         back_btn.bind('<Button-1>', lambda e: self._go_back())
 
+        add_labs_btn = tk.Label(nav, text="+ Add Labs",
+                                font=('Arial', FONT_BODY), bg=BG, fg=FG,
+                                cursor='hand2', padx=8, pady=4)
+        add_labs_btn.pack(side='right')
+        add_labs_btn.bind('<Button-1>', lambda e: self._on_add_labs())
+
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
         # ── Patient header card ────────────────────────────────────────────────
@@ -123,6 +129,13 @@ class DashboardView(tk.Frame):
             self.protocol_label.config(text=self.patient.protocol or "—")
             self.start_date_label.config(
                 text=f"Started {self.patient.start_date}" if self.patient.start_date else "—")
+
+    def _on_add_labs(self):
+        if self.patient_id is None:
+            return
+        from views.dialogs.add_lab_dialog import AddLabDialog
+        dialog = AddLabDialog(self.winfo_toplevel(), self.app.conn, self.patient_id)
+        self.wait_window(dialog)
 
     def _go_back(self):
         from views.patient_list import PatientListView
