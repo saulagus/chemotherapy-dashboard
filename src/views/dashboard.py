@@ -97,10 +97,24 @@ class DashboardView(tk.Frame):
         self.timeline = TimelineComponent(timeline_frame, self.app)
         self.timeline.pack(anchor='w', pady=(0, 8))
 
-        # ── Latest labs panel ──────────────────────────────────────────────────
-        self.labs_panel = LatestLabsPanel(content, self.app.conn,
+        # ── Bottom section: labs + chart side by side ──────────────────────────
+        bottom = tk.Frame(content, bg=BG)
+        bottom.grid(row=1, column=0, sticky='ew')
+        bottom.columnconfigure(0, weight=3)   # labs ~30%
+        bottom.columnconfigure(1, weight=7)   # chart ~70%
+
+        self.labs_panel = LatestLabsPanel(bottom, self.app.conn,
                                           on_add_labs=self._on_add_labs)
-        self.labs_panel.grid(row=1, column=0, sticky='ew')
+        self.labs_panel.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
+
+        chart_placeholder = tk.Frame(bottom, bg=BG_ALT)
+        chart_placeholder.grid(row=0, column=1, sticky='nsew')
+        tk.Label(chart_placeholder, text="ANC Trend Chart",
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG,
+                 anchor='w').pack(anchor='w', padx=16, pady=(14, 0))
+        tk.Frame(chart_placeholder, bg=SEPARATOR, height=1).pack(fill='x', padx=16, pady=(8, 0))
+        tk.Label(chart_placeholder, text="Coming in US-016",
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED).pack(pady=16)
 
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
