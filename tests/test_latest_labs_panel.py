@@ -106,6 +106,38 @@ def test_load_patient_switches_context(root, conn):
     conn2.close()
 
 
+# ── ANC color coding ─────────────────────────────────────────────────────────
+
+def test_anc_color_normal(root, conn):
+    from utils.anc_utils import get_anc_status
+    assert get_anc_status(2.1)['status'] == 'normal'
+    assert get_anc_status(2.1)['color']  == '#4CAF50'
+
+def test_anc_color_mild(root, conn):
+    from utils.anc_utils import get_anc_status
+    assert get_anc_status(1.2)['status'] == 'mild'
+    assert get_anc_status(1.2)['color']  == '#FFC107'
+
+def test_anc_color_moderate(root, conn):
+    from utils.anc_utils import get_anc_status
+    assert get_anc_status(0.7)['status'] == 'moderate'
+    assert get_anc_status(0.7)['color']  == '#FF9800'
+
+def test_anc_color_severe(root, conn):
+    from utils.anc_utils import get_anc_status
+    assert get_anc_status(0.4)['status'] == 'severe'
+    assert get_anc_status(0.4)['color']  == '#F44336'
+
+def test_panel_renders_with_anc_color(root, conn):
+    conn2 = sqlite3.connect(':memory:')
+    create_tables(conn2)
+    p = add_patient(conn2, Patient(patient_id='PT-C', name='Color Test'))
+    add_lab(conn2, Lab(patient_id=p.id, lab_date=date.today(), anc=0.4))
+    panel = LatestLabsPanel(root, conn2, p.id)
+    assert panel._content is not None
+    panel.destroy()
+    conn2.close()
+
 # ── Days ago logic ────────────────────────────────────────────────────────────
 
 def test_today_label(root, conn):
