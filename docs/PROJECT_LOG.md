@@ -2,6 +2,84 @@
 
 ---
 
+## 2026-04-05 — Sprint 3 Day 21 (Planning + Lab Entry Dialog Design)
+
+### Sprint 3 Kickoff
+- Reviewed Sprint 2 accomplishments — all 14 points delivered, M2: Timeline Working ✅
+- Sprint 3 goal: Lab values entered with validation, latest labs display with ANC color coding, ANC trend chart visualizes blood count patterns over time
+- Reviewed all 4 Sprint 3 stories and acceptance criteria in detail
+
+### Story Acceptance Criteria Reviewed
+- **US-013 Add Lab Values (3 pts):** Dialog with Date (required), ANC (required), WBC/Platelets/Hemoglobin (optional), numeric validation, save to database
+- **US-014 View Latest Lab Values (1 pt):** Latest labs displayed prominently with date; empty state "No labs recorded"; updates after new entry
+- **US-015 ANC Threshold Color Indicators (1 pt):** ANC color-coded — Green ≥1.5 (Normal), Yellow 1.0–1.49 (Mild), Orange 0.5–0.99 (Moderate), Red <0.5 (Severe); status label shown
+- **US-016 View Lab Trend Chart (5 pts):** Line chart ANC over time; X-axis dates, Y-axis ANC; dashed reference line at 1.5; points below threshold highlighted; updates after new labs added
+
+### Technical Approach Decided
+- `get_anc_status(anc)` utility in `src/utils/anc_utils.py` — single source of truth for threshold colors/labels; reused in panel and chart
+- Matplotlib embedded via `FigureCanvasTkAgg` from `matplotlib.backends.backend_tkagg`; color-coded markers overlaid on neutral line
+- Validation ranges: ANC 0–20, WBC 0–50, Platelets 0–1000, Hemoglobin 0–20; values outside range trigger warning (not hard error)
+- Dependency order: US-013 → US-014 + US-015 → US-016 → dashboard integration
+
+### Day-by-Day Plan Confirmed
+- Day 21: Planning + add_lab_dialog layout
+- Day 22: Validation and save functionality
+- Day 23: Latest labs display panel
+- Day 24: ANC color coding
+- Day 25: ANC color coding applied + chart research
+- Day 26: Basic chart + threshold line
+- Day 27: Chart styling and point highlighting
+- Day 28: Chart integration and refresh
+- Day 29: Testing and bug fixes
+- Day 30: Sprint review and retrospective
+
+### Development: Add Lab Values Dialog Design
+- Created `src/views/dialogs/add_lab_dialog.py` with `AddLabDialog(tk.Toplevel)`
+- Fields: Lab Date (default today), ANC* (required), WBC, Platelets, Hemoglobin, Notes (all optional)
+- Grid layout: labels right-aligned col 0, entries col 1; hint text in smaller gray font below each field
+- Required fields marked with `*`; optional fields labeled "(optional)"
+- Added "+ Add Labs" button to dashboard header; `_on_add_labs()` opens dialog with patient context
+- Dialog centers on parent, grabs focus, `<Return>` → save, `<Escape>` → cancel
+
+### Decisions
+- No cycle-association dropdown for MVP — adds complexity with little clinical value at this stage
+- Notes field as single-line Entry (not Text widget) — keeps layout consistent with other dialogs
+- "Add Labs" button placed in dashboard nav bar (top-right), consistent with "Add Patient" pattern
+
+### Blockers
+- None
+
+### Next
+- Day 22: Wire up input collection, validation logic (date, numeric, range warnings), save to database via `LabValue` model
+
+---
+
+## 2026-04-06 — Sprint 3 Day 24 (ANC Color Coding — US-015)
+
+### Morning Check-in
+- Lab entry ✅ (US-013 complete, 95 tests passing)
+- Latest labs display ✅ (US-014 complete, gaps closed)
+- Today: ANC threshold color coding — key clinical safety feature
+
+### Plan
+- Create `src/utils/anc_utils.py` with `get_anc_status(anc)` returning `{status, color, label}`
+- Thresholds: ≥1.5 Normal (green), 1.0–1.49 Mild (yellow), 0.5–0.99 Moderate (orange), <0.5 Severe (red)
+- Apply to `LatestLabsPanel`: colored ● indicator + value in threshold color + status label text
+- Visual approach: combination of colored dot + colored value text (accessible — text label always present)
+- Optional: color legend at bottom of panel
+- Tests: `tests/test_anc_utils.py` covering all thresholds and edge cases
+
+### Decisions
+- Combination approach chosen (dot + colored text + label) over text-only or background highlight
+- Text label always shown alongside color — does not rely on color alone (accessibility)
+- Legend added to panel bottom — small, unobtrusive, helpful for first-time users
+- `anc_utils.py` lives in `src/utils/` so chart (US-016) can reuse it without circular imports
+
+### Next
+- US-016: ANC trend chart with matplotlib (`FigureCanvasTkAgg`), threshold line at 1.5, color-coded markers
+
+---
+
 ## 2026-03-15 — Sprint 2 Day 11
 
 ### Completed
