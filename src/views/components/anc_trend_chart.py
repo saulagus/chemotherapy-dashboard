@@ -101,6 +101,7 @@ class ANCTrendChart(tk.Frame):
         ax.yaxis.label.set_color(_TEXT_COLOR)
         for spine in ax.spines.values():
             spine.set_edgecolor(_GRID_COLOR)
+        ax.set_title('ANC Trend Over Time', color=_TEXT_COLOR, fontsize=10, pad=6)
         ax.set_xlabel('Date', fontsize=9, color=_TEXT_COLOR)
         ax.set_ylabel('ANC (K/μL)', fontsize=9, color=_TEXT_COLOR)
         ax.grid(True, linestyle='--', color=_GRID_COLOR, alpha=0.6, zorder=0)
