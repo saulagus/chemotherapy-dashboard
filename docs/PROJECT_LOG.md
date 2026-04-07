@@ -54,6 +54,46 @@
 
 ---
 
+## 2026-04-07 — Sprint 3 Days 25–27 (ANC Trend Chart — US-016)
+
+### Morning Check-in
+- Lab entry ✅ (US-013)
+- Latest labs display ✅ (US-014)
+- ANC color coding ✅ (US-015, 109 tests passing)
+- Today: Start chart implementation — most complex part of Sprint 3
+
+### Day 25 — Basic Chart Component
+- Create `src/views/components/anc_trend_chart.py` with `ANCTrendChart(tk.Frame)`
+- Embed via `FigureCanvasTkAgg` from `matplotlib.backends.backend_tkagg`
+- `load_patient(patient_id)` and `refresh()` as public API
+- Data: `get_labs_by_patient()` → extract dates + ANC sorted oldest→newest
+- Empty state: message on axes when no data
+- Single point: plot point + "Add more labs to see trend"
+- Styling: axis labels ("Date", "ANC (K/μL)"), grid, line width 2, circle markers
+
+### Day 26 — Threshold Line + Color-Coded Points
+- Dashed threshold line at y=1.5 via `ax.axhline(y=1.5, color='red', linestyle='--')`
+- Neutral gray trend line, colored markers per point via `get_anc_status()`
+- X-axis: `AutoDateLocator` + `DateFormatter` for clean date labels, rotated if needed
+- Polish: `fig.tight_layout()`, figure background matches dashboard, grid behind data (zorder)
+
+### Day 27 — Dashboard Integration + Refresh
+- Replace `chart_placeholder` in `dashboard.py` with real `ANCTrendChart`
+- `refresh_labs()` in dashboard calls both `labs_panel.refresh()` and `chart.refresh()`
+- `on_save` callback wired through to refresh both components after new lab entry
+- Edge cases: 0 labs, 1 lab, 20+ labs, all normal, all below threshold, wide date range
+- Tests: `tests/test_anc_trend_chart.py` covering data loading, empty/single state, refresh
+
+### Decisions
+- `get_anc_status()` reused from `anc_utils.py` — colors consistent between panel and chart
+- Neutral gray line + colored overlay markers — more informative than single-color
+- Chart column already reserved at 70% width from Gap 2 fix — swap placeholder for real component
+
+### Next
+- Sprint 3 review, retrospective, SPRINT_3_SUMMARY.md
+
+---
+
 ## 2026-04-06 — Sprint 3 Day 24 (ANC Color Coding — US-015)
 
 ### Morning Check-in
