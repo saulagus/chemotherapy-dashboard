@@ -246,3 +246,40 @@ def test_dialog_stays_open_on_invalid_data(root, conn, patient):
     d._on_save()
     assert d.winfo_exists()
     d.destroy()
+
+
+# ── AC: Multiple labs saved separately ───────────────────────────────────────
+
+def test_multiple_labs_all_stored_separately(root, conn):
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-MULTI', name='Multi'))
+
+    dates_ancs = [('2026-01-10', '2.1'), ('2026-02-10', '1.2'), ('2026-03-10', '0.4')]
+    for lab_date, anc in dates_ancs:
+        d = AddLabDialog(root, c, p.id)
+        d.date_var.set(lab_date)
+        d.anc_var.set(anc)
+        d._on_save()
+
+    labs = get_labs_by_patient(c, p.id)
+    assert len(labs) == 3
+    saved_ancs = sorted(l.anc for l in labs)
+    assert saved_ancs == [0.4, 1.2, 2.1]
+    c.close()
+
+def test_save_anc_50_triggers_warning(root, conn, patient):
+    d = AddLabDialog(root, conn, patient.id)
+    d.date_var.set(str(date.today()))
+    d.anc_var.set('50.0')
+    warnings = d._get_warnings()
+    assert any('ANC' in w for w in warnings)
+    d.destroy()
+
+def test_error_label_shown_on_invalid_save(root, conn, patient):
+    d = AddLabDialog(root, conn, patient.id)
+    d.date_var.set('')
+    d.anc_var.set('')
+    d._on_save()
+    assert d.error_label.cget('text') != ''
+    d.destroy()

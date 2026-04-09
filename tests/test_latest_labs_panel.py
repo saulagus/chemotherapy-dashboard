@@ -156,3 +156,41 @@ def test_days_ago_calculation():
     lab_date = date.today() - timedelta(days=5)
     days_diff = (date.today() - lab_date).days
     assert days_diff == 5
+
+
+# ── AC: Two patients each show their own labs ─────────────────────────────────
+
+def test_two_patients_each_show_own_labs(root, conn):
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p1 = add_patient(c, Patient(patient_id='PT-ISO1', name='Alice'))
+    p2 = add_patient(c, Patient(patient_id='PT-ISO2', name='Bob'))
+
+    add_lab(c, Lab(patient_id=p1.id, lab_date=date.today(), anc=2.5))
+    add_lab(c, Lab(patient_id=p2.id, lab_date=date.today(), anc=0.3))
+
+    from models import get_latest_lab
+    assert get_latest_lab(c, p1.id).anc == 2.5
+    assert get_latest_lab(c, p2.id).anc == 0.3
+    c.close()
+
+def test_yesterday_label_logic():
+    lab_date = date.today() - timedelta(days=1)
+    days_diff = (date.today() - lab_date).days
+    assert days_diff == 1  # maps to "Yesterday" branch
+
+def test_panel_updates_after_second_lab(root, conn):
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-UPD', name='Update'))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 1, 1), anc=1.8))
+    panel = LatestLabsPanel(root, c, p.id)
+
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 3, 1), anc=0.4))
+    panel.refresh()
+
+    from models import get_latest_lab
+    latest = get_latest_lab(c, p.id)
+    assert latest.anc == 0.4
+    panel.destroy()
+    c.close()

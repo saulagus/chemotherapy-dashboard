@@ -48,3 +48,39 @@ def test_edge_just_below_0_5():
 
 def test_edge_zero():
     assert get_anc_status(0.0)['status'] == 'severe'
+
+
+# ── AC: Labels always present ─────────────────────────────────────────────────
+
+def test_all_statuses_have_label():
+    for anc in [2.0, 1.2, 0.7, 0.3]:
+        result = get_anc_status(anc)
+        assert 'label' in result
+        assert len(result['label']) > 0
+
+def test_boundary_1_49_is_mild():
+    assert get_anc_status(1.49)['status'] == 'mild'
+
+def test_boundary_just_above_1_5_is_normal():
+    assert get_anc_status(1.51)['status'] == 'normal'
+
+def test_boundary_exactly_0_5_is_moderate():
+    assert get_anc_status(0.5)['status'] == 'moderate'
+
+# ── AC: Color consistency — panel and chart use same constants ────────────────
+
+def test_color_constants_importable():
+    from utils.anc_utils import ANC_THRESHOLD_MILD, ANC_THRESHOLD_MODERATE, ANC_THRESHOLD_SEVERE
+    assert ANC_THRESHOLD_MILD     == 1.5
+    assert ANC_THRESHOLD_MODERATE == 1.0
+    assert ANC_THRESHOLD_SEVERE   == 0.5
+
+def test_panel_and_chart_use_same_anc_status_function():
+    """Both components import get_anc_status from utils.anc_utils — single source of truth."""
+    from views.components.latest_labs_panel import LatestLabsPanel
+    from views.components.anc_trend_chart import ANCTrendChart
+    import inspect, utils.anc_utils as mod
+    panel_src = inspect.getsource(LatestLabsPanel)
+    chart_src  = inspect.getsource(ANCTrendChart)
+    assert 'get_anc_status' in panel_src
+    assert 'get_anc_status' in chart_src

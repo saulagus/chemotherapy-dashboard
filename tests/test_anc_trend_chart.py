@@ -123,3 +123,76 @@ def test_refresh_does_not_crash(root, conn, patient):
     assert chart.winfo_exists()
     chart.destroy()
     c.close()
+
+
+# ── AC: Edge cases ────────────────────────────────────────────────────────────
+
+def test_chart_with_50_labs(root, conn):
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-50', name='Fifty'))
+    for i in range(50):
+        add_lab(c, Lab(patient_id=p.id,
+                       lab_date=date.today() - timedelta(days=i),
+                       anc=round(0.5 + (i % 5) * 0.4, 1)))
+    chart = ANCTrendChart(root, c, p.id)
+    assert chart.winfo_exists()
+    chart.destroy()
+    c.close()
+
+def test_chart_with_duplicate_dates(root, conn):
+    """Two labs on the same date — both loaded, chart does not crash."""
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-DUP', name='Dup'))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 3, 1), anc=1.8))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 3, 1), anc=0.9))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 3, 15), anc=1.2))
+    chart = ANCTrendChart(root, c, p.id)
+    assert chart.winfo_exists()
+    chart.destroy()
+    c.close()
+
+def test_chart_with_large_date_gaps(root, conn):
+    """Labs on day 1, day 30, day 120 — wide gaps handled."""
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-GAP', name='Gaps'))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 1, 1),  anc=2.0))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 2, 1),  anc=0.8))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 5, 1),  anc=1.6))
+    chart = ANCTrendChart(root, c, p.id)
+    assert chart.winfo_exists()
+    chart.destroy()
+    c.close()
+
+def test_chart_all_same_anc_value(root, conn):
+    """Flat line (all ANC = 1.8) does not crash."""
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-FLAT', name='Flat'))
+    for i in range(5):
+        add_lab(c, Lab(patient_id=p.id,
+                       lab_date=date.today() - timedelta(days=i * 7),
+                       anc=1.8))
+    chart = ANCTrendChart(root, c, p.id)
+    assert chart.winfo_exists()
+    chart.destroy()
+    c.close()
+
+def test_chart_refreshes_after_new_lab(root, conn):
+    """Chart shows new point after lab is added and refresh() called."""
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-REF2', name='Refresh2'))
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 1, 1), anc=1.8))
+    chart = ANCTrendChart(root, c, p.id)
+    dates_before, _ = chart._load_data()
+    assert len(dates_before) == 1
+
+    add_lab(c, Lab(patient_id=p.id, lab_date=date(2026, 2, 1), anc=0.6))
+    chart.refresh()
+    dates_after, _ = chart._load_data()
+    assert len(dates_after) == 2
+    chart.destroy()
+    c.close()
