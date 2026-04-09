@@ -2,6 +2,38 @@
 
 ---
 
+## 2026-04-09 — Sprint 3 Days 28–30 (Testing, Polish, Review)
+
+### Day 28 — Comprehensive Acceptance Testing
+- Ran baseline: 118 tests passing
+- Wrote acceptance-criteria tests for US-013: multiple labs saved separately, error label shown, ANC=50 triggers warning
+- Wrote acceptance-criteria tests for US-014: two-patient isolation, yesterday label logic, panel updates after second lab
+- Wrote acceptance-criteria tests for US-015: boundary values (1.49, 1.51, 0.5), all statuses have labels, color constants consistent, panel and chart use same `get_anc_status` function
+- Wrote acceptance-criteria tests for US-016: 50-lab performance, duplicate dates, large date gaps, flat line (all same ANC), refresh after new lab
+- Result: 135 passing, no bugs found
+
+### Day 29 — Edge Cases + Polish + Docs
+- Edge case tests: ANC=0.0, ANC=0.01, ANC=50 (warning not error), future date (+1 day), year 1900, only ANC filled
+- Code review: no debug prints found in Sprint 3 code; matplotlib constants verified against palette
+- Added docstrings to `_build_canvas` and `_draw_chart` in `anc_trend_chart.py` explaining embedding approach and color-coded marker strategy
+- Updated `docs/USER_GUIDE.md`: added sections for Adding Lab Values, Latest Labs Panel, ANC Color Coding, ANC Trend Chart
+- Result: 145 tests passing
+
+### Day 30 — Sprint Review
+- Dashboard integration confirmed: `ANCTrendChart` live in dashboard, wired to `_refresh_labs()` callback
+- All 4 stories verified complete (see SPRINT_3_SUMMARY.md)
+- M3: Labs Working — ACHIEVED ✅
+- Tagged: v0.3-sprint3
+
+### Decisions
+- No bugs found during acceptance testing — all 4 stories shipped clean
+- Edge case tests added directly to existing test files rather than new files — keeps test suite organized by module
+
+### Next
+- Sprint 4: Dashboard Integration & Polish (6 pts)
+
+---
+
 ## 2026-04-05 — Sprint 3 Day 21 (Planning + Lab Entry Dialog Design)
 
 ### Sprint 3 Kickoff
