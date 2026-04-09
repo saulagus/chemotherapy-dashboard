@@ -6,6 +6,7 @@ from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
 from models import Patient, get_patient_by_db_id, get_cycles_by_patient, get_labs_by_patient
 from views.components.timeline import TimelineComponent
 from views.components.latest_labs_panel import LatestLabsPanel
+from views.components.anc_trend_chart import ANCTrendChart
 
 
 class DashboardView(tk.Frame):
@@ -107,14 +108,8 @@ class DashboardView(tk.Frame):
                                           on_add_labs=self._on_add_labs)
         self.labs_panel.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
 
-        chart_placeholder = tk.Frame(bottom, bg=BG_ALT)
-        chart_placeholder.grid(row=0, column=1, sticky='nsew')
-        tk.Label(chart_placeholder, text="ANC Trend Chart",
-                 font=('Arial', FONT_HEADER, 'bold'), bg=BG_ALT, fg=FG,
-                 anchor='w').pack(anchor='w', padx=16, pady=(14, 0))
-        tk.Frame(chart_placeholder, bg=SEPARATOR, height=1).pack(fill='x', padx=16, pady=(8, 0))
-        tk.Label(chart_placeholder, text="Coming in US-016",
-                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED).pack(pady=16)
+        self.chart = ANCTrendChart(bottom, self.app.conn)
+        self.chart.grid(row=0, column=1, sticky='nsew')
 
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
@@ -123,6 +118,7 @@ class DashboardView(tk.Frame):
         if patient_id:
             self.timeline.load_patient(patient_id)
             self.labs_panel.load_patient(patient_id)
+            self.chart.load_patient(patient_id)
         self.refresh()
 
     def refresh(self):
@@ -146,7 +142,11 @@ class DashboardView(tk.Frame):
             return
         from views.dialogs.add_lab_dialog import AddLabDialog
         AddLabDialog(self.winfo_toplevel(), self.app.conn, self.patient_id,
-                     on_save=self.labs_panel.refresh)
+                     on_save=self._refresh_labs)
+
+    def _refresh_labs(self):
+        self.labs_panel.refresh()
+        self.chart.refresh()
 
     def _go_back(self):
         from views.patient_list import PatientListView
