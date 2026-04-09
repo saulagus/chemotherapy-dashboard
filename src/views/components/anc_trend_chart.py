@@ -46,6 +46,12 @@ class ANCTrendChart(tk.Frame):
     # ── Canvas setup (runs once) ──────────────────────────────────────────────
 
     def _build_canvas(self):
+        """Create the matplotlib Figure and embed it in Tkinter via FigureCanvasTkAgg.
+
+        figsize and subplots_adjust are tuned so the axes fill the available
+        panel space at the default 70% column width. The canvas widget expands
+        to fill whatever space the grid allocates.
+        """
         self.fig = Figure(figsize=(6, 3.5), facecolor=_FIG_BG)
         self.ax  = self.fig.add_subplot(111)
         self.ax.set_facecolor(_AX_BG)
@@ -125,10 +131,17 @@ class ANCTrendChart(tk.Frame):
         self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
 
     def _draw_chart(self, dates, ancs):
+        """Draw the full trend line with per-point color-coded markers.
+
+        Approach: plot a single neutral gray line first (zorder=2), then
+        overlay individual colored circle markers (zorder=3) using get_anc_status()
+        so each point reflects its threshold category. This is cleaner than
+        plotting separate colored line segments and keeps the trend line uniform.
+        """
         # Neutral trend line
         self.ax.plot(dates, ancs, color=_LINE_COLOR, linewidth=2, zorder=2)
 
-        # Color-coded markers
+        # Color-coded markers — one plot call per point to apply per-threshold color
         for d, anc in zip(dates, ancs):
             status = get_anc_status(anc)
             self.ax.plot(d, anc, 'o',
@@ -136,12 +149,13 @@ class ANCTrendChart(tk.Frame):
 
         self._draw_threshold_line()
 
-        # X-axis date formatting
+        # AutoDateLocator picks sensible tick intervals for any date range
         self.ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         self.fig.autofmt_xdate(rotation=30, ha='right')
 
-        # Y-axis padding
+        # Y ceiling: at least 2× the mild threshold so the reference line is
+        # never at the top edge; also scales with unusually high values
         max_anc = max(ancs)
         self.ax.set_ylim(0, max(max_anc * 1.2, ANC_THRESHOLD_MILD * 2))
 

@@ -121,6 +121,61 @@ This action is permanent and cannot be undone.
 
 ---
 
+## Adding Lab Values
+
+1. Open a patient's dashboard
+2. Click **+ Add Labs** in the top-right navigation bar
+3. Fill in the fields:
+   - **Lab Date** — defaults to today (YYYY-MM-DD format, required)
+   - **ANC** — Absolute Neutrophil Count in K/μL (required)
+   - **WBC**, **Platelets**, **Hemoglobin** — optional
+4. Click **Save Labs** or press **Enter** to save
+5. Press **Escape** or click **Cancel** to discard
+
+The **Latest Labs** panel and **ANC Trend Chart** refresh automatically after saving.
+
+---
+
+## Understanding the Latest Labs Panel
+
+The **Latest Labs** panel (lower-left of the dashboard) shows the most recent lab draw for the current patient:
+
+- **Date** and how many days ago it was recorded (e.g. "Mar 15, 2026 · 3 days ago")
+- **ANC**, **WBC**, **Platelets**, and **Hemoglobin** values (optional fields only shown if recorded)
+
+When no labs have been entered, the panel shows "No labs recorded yet" with a shortcut link to add labs.
+
+---
+
+## Understanding ANC Color Coding
+
+ANC values are color-coded throughout the dashboard based on neutropenia thresholds:
+
+| Color | ANC Range | Status |
+|-------|-----------|--------|
+| Green | ≥ 1.5 K/μL | Normal |
+| Yellow | 1.0 – 1.49 K/μL | Mild Neutropenia |
+| Orange | 0.5 – 0.99 K/μL | Moderate Neutropenia |
+| Red | < 0.5 K/μL | Severe Neutropenia |
+
+A color legend is shown at the bottom of the Latest Labs panel. The same colors are used in the ANC Trend Chart markers.
+
+---
+
+## Understanding the ANC Trend Chart
+
+The **ANC Trend Chart** (lower-right of the dashboard) shows how ANC has changed over time:
+
+- **X-axis** — lab dates, formatted automatically based on the date range
+- **Y-axis** — ANC value in K/μL
+- **Gray line** — the trend connecting all data points
+- **Colored markers** — each point is colored by its ANC threshold category
+- **Dashed red line** — the 1.5 K/μL threshold (lower edge of Normal range)
+
+If no labs have been recorded, the chart shows "No lab data to display." If only one lab exists, it shows the single point with a note to add more labs to see a trend.
+
+---
+
 ## Keyboard Shortcuts
 
 | Key | Action |

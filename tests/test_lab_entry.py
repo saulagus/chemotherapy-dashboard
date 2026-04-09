@@ -283,3 +283,49 @@ def test_error_label_shown_on_invalid_save(root, conn, patient):
     d._on_save()
     assert d.error_label.cget('text') != ''
     d.destroy()
+
+
+# ── Edge cases ────────────────────────────────────────────────────────────────
+
+def test_anc_zero_is_valid(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('0.0')
+    assert dialog.validate() == []
+
+def test_anc_0_01_is_valid(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('0.01')
+    assert dialog.validate() == []
+
+def test_anc_50_triggers_warning_not_error(dialog):
+    dialog.date_var.set(str(date.today()))
+    dialog.anc_var.set('50.0')
+    assert dialog.validate() == []
+    assert dialog._get_warnings() != []
+
+def test_future_date_one_day_ahead_is_error(dialog):
+    dialog.date_var.set(str(date.today() + timedelta(days=1)))
+    dialog.anc_var.set('1.8')
+    errors = dialog.validate()
+    assert any('future' in e.lower() for e in errors)
+
+def test_year_1900_is_error(dialog):
+    dialog.date_var.set('1900-01-01')
+    dialog.anc_var.set('1.8')
+    errors = dialog.validate()
+    assert any('2000' in e for e in errors)
+
+def test_only_anc_filled_optional_all_none(root, conn, patient):
+    c = sqlite3.connect(':memory:')
+    create_tables(c)
+    p = add_patient(c, Patient(patient_id='PT-ONLY', name='Only ANC'))
+    d = AddLabDialog(root, c, p.id)
+    d.date_var.set(str(date.today()))
+    d.anc_var.set('1.8')
+    d._on_save()
+    labs = get_labs_by_patient(c, p.id)
+    assert len(labs) == 1
+    assert labs[0].wbc is None
+    assert labs[0].platelets is None
+    assert labs[0].hemoglobin is None
+    c.close()

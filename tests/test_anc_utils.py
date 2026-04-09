@@ -84,3 +84,22 @@ def test_panel_and_chart_use_same_anc_status_function():
     chart_src  = inspect.getsource(ANCTrendChart)
     assert 'get_anc_status' in panel_src
     assert 'get_anc_status' in chart_src
+
+
+# ── Edge cases ────────────────────────────────────────────────────────────────
+
+def test_anc_0_0_is_severe():
+    assert get_anc_status(0.0)['status'] == 'severe'
+
+def test_anc_0_01_is_severe():
+    assert get_anc_status(0.01)['status'] == 'severe'
+
+def test_anc_very_high_is_normal():
+    result = get_anc_status(50.0)
+    assert result['status'] == 'normal'
+    assert result['color'] == '#4CAF50'
+
+def test_all_statuses_return_dict_with_required_keys():
+    for anc in [0.0, 0.3, 0.5, 0.7, 1.0, 1.2, 1.5, 2.0, 10.0]:
+        result = get_anc_status(anc)
+        assert set(result.keys()) == {'status', 'color', 'label'}
