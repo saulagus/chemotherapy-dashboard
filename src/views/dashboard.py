@@ -1,9 +1,7 @@
 import tkinter as tk
-from tkinter import ttk
-from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
-                   FONT_LABEL, FONT_BODY, FONT_DETAIL,
-                   FONT_HEADER, FONT_TITLE, FONT_NAME)
-from models import Patient, get_patient_by_db_id, get_cycles_by_patient, get_labs_by_patient
+from utils import BG, BG_ALT, SEPARATOR, FONT_HEADER, FG
+from models import get_patient_by_db_id
+from views.components.patient_header import PatientHeader
 from views.components.timeline import TimelineComponent
 from views.components.latest_labs_panel import LatestLabsPanel
 from views.components.anc_trend_chart import ANCTrendChart
@@ -23,59 +21,9 @@ class DashboardView(tk.Frame):
     def _build_ui(self):
         self.configure(bg=BG)
 
-        # ── Top nav bar ────────────────────────────────────────────────────────
-        nav = tk.Frame(self, bg=BG, pady=14, padx=24)
-        nav.pack(fill='x')
-
-        self.title_label = tk.Label(nav, text="Patient Dashboard",
-                                    font=('Arial', FONT_TITLE), bg=BG, fg=FG)
-        self.title_label.pack(side='left')
-
-        back_btn = tk.Label(nav, text="<- Back",
-                            font=('Arial', FONT_BODY), bg=BG, fg=FG,
-                            cursor='hand2', padx=10, pady=4)
-        back_btn.pack(side='right')
-        back_btn.bind('<Button-1>', lambda e: self._go_back())
-
-        add_labs_btn = tk.Label(nav, text="+ Add Labs",
-                                font=('Arial', FONT_BODY), bg=BG, fg=FG,
-                                cursor='hand2', padx=8, pady=4)
-        add_labs_btn.pack(side='right')
-        add_labs_btn.bind('<Button-1>', lambda e: self._on_add_labs())
-
-        tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
-
-        # ── Patient header card ────────────────────────────────────────────────
-        self.header_frame = tk.Frame(self, bg=BG_ALT, padx=20, pady=16)
-        self.header_frame.pack(fill='x')
-
-        # Patient name — large and prominent.
-        self.name_label = tk.Label(self.header_frame, text="",
-                                   font=('Arial', FONT_NAME, 'bold'), bg=BG_ALT, fg=FG,
-                                   anchor='w')
-        self.name_label.pack(anchor='w')
-
-        # Detail row: ID · Protocol · Start Date
-        detail_row = tk.Frame(self.header_frame, bg=BG_ALT)
-        detail_row.pack(anchor='w', pady=(6, 0))
-
-        self.id_label = tk.Label(detail_row, text="",
-                                 font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED)
-        self.id_label.pack(side='left')
-
-        tk.Label(detail_row, text="  ·  ",
-                 font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
-
-        self.protocol_label = tk.Label(detail_row, text="",
-                                       font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED)
-        self.protocol_label.pack(side='left')
-
-        tk.Label(detail_row, text="  ·  ",
-                 font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
-
-        self.start_date_label = tk.Label(detail_row, text="",
-                                         font=('Arial', FONT_DETAIL), bg=BG_ALT, fg=FG_MUTED)
-        self.start_date_label.pack(side='left')
+        # ── Patient header ─────────────────────────────────────────────────────
+        self.header = PatientHeader(self, self.app, on_add_labs=self._on_add_labs)
+        self.header.pack(fill='x')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
@@ -123,20 +71,8 @@ class DashboardView(tk.Frame):
         self.refresh()
 
     def refresh(self):
-        """Update all header labels from self.patient."""
-        if self.patient is None:
-            self.title_label.config(text="Patient Dashboard")
-            self.name_label.config(text="No patient selected.")
-            self.id_label.config(text="")
-            self.protocol_label.config(text="")
-            self.start_date_label.config(text="")
-        else:
-            self.title_label.config(text="Patient Dashboard")
-            self.name_label.config(text=self.patient.name)
-            self.id_label.config(text=f"ID: {self.patient.patient_id}")
-            self.protocol_label.config(text=self.patient.protocol or "—")
-            self.start_date_label.config(
-                text=f"Started {self.patient.start_date}" if self.patient.start_date else "—")
+        """Refresh all dashboard components from self.patient."""
+        self.header.update_display(self.patient)
 
     def _on_add_labs(self):
         if self.patient_id is None:
@@ -149,6 +85,3 @@ class DashboardView(tk.Frame):
         self.labs_panel.refresh()
         self.chart.refresh()
 
-    def _go_back(self):
-        from views.patient_list import PatientListView
-        self.app.show_frame(PatientListView)

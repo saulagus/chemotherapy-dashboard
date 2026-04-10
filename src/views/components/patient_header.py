@@ -1,0 +1,86 @@
+import tkinter as tk
+from datetime import date
+from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
+                   FONT_BODY, FONT_DETAIL, FONT_NAME)
+
+
+class PatientHeader(tk.Frame):
+    """Patient identity header shown at the top of the dashboard.
+
+    Displays the back button, add-labs button, patient name, and
+    detail row (ID, protocol, start date).
+
+    Public API
+    ----------
+    update_display(patient) — refresh all labels from a Patient object or None
+    """
+
+    def __init__(self, parent, controller, on_add_labs=None, **kwargs):
+        super().__init__(parent, bg=BG_ALT, **kwargs)
+        self.controller   = controller
+        self.on_add_labs  = on_add_labs
+        self._build_ui()
+
+    def _build_ui(self):
+        # ── Action row: back (left) + add labs (right) ────────────────────────
+        action_row = tk.Frame(self, bg=BG_ALT, padx=20, pady=10)
+        action_row.pack(fill='x')
+
+        back_btn = tk.Label(action_row, text="\u2190 Back to List",
+                            font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
+                            cursor='hand2')
+        back_btn.pack(side='left')
+        back_btn.bind('<Button-1>', lambda e: self._go_back())
+        back_btn.bind('<Enter>', lambda e: back_btn.config(fg=FG))
+        back_btn.bind('<Leave>', lambda e: back_btn.config(fg=FG_MUTED))
+
+        if self.on_add_labs is not None:
+            add_btn = tk.Label(action_row, text="+ Add Labs",
+                               font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
+                               cursor='hand2')
+            add_btn.pack(side='right')
+            add_btn.bind('<Button-1>', lambda e: self.on_add_labs())
+            add_btn.bind('<Enter>', lambda e: add_btn.config(fg=FG))
+            add_btn.bind('<Leave>', lambda e: add_btn.config(fg=FG_MUTED))
+
+        # ── Name + detail block ───────────────────────────────────────────────
+        info_frame = tk.Frame(self, bg=BG_ALT, padx=20)
+        info_frame.pack(fill='x', anchor='w', pady=(0, 16))
+
+        self._name_label = tk.Label(info_frame, text="",
+                                    font=('Arial', FONT_NAME, 'bold'),
+                                    bg=BG_ALT, fg=FG, anchor='w')
+        self._name_label.pack(anchor='w')
+
+        self._detail_label = tk.Label(info_frame, text="",
+                                      font=('Arial', FONT_DETAIL),
+                                      bg=BG_ALT, fg=FG_MUTED, anchor='w')
+        self._detail_label.pack(anchor='w', pady=(4, 0))
+
+    def update_display(self, patient):
+        """Refresh header labels from a Patient object. Pass None to clear."""
+        if patient is None:
+            self._name_label.config(text="")
+            self._detail_label.config(text="")
+            return
+
+        self._name_label.config(text=patient.name)
+
+        pid      = f"ID: {patient.patient_id}"
+        protocol = patient.protocol or "\u2014"
+        started  = self._format_date(patient.start_date)
+
+        self._detail_label.config(
+            text=f"{pid}  \u2502  {protocol}  \u2502  Started: {started}"
+        )
+
+    def _format_date(self, d):
+        if d is None:
+            return "\u2014"
+        if isinstance(d, str):
+            d = date.fromisoformat(d)
+        return d.strftime("%b %d, %Y")
+
+    def _go_back(self):
+        from views.patient_list import PatientListView
+        self.controller.show_frame(PatientListView)
