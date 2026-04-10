@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-04-10 — Sprint 4 Day 31 (Sprint Planning)
+
+### Sprint 4 Kickoff
+- Sprint 3 complete — M3: Labs Working ✅, 145 tests passing, tagged v0.3-sprint3
+- Sprint 4 goal: All components fully integrated into unified dashboard, end-to-end workflows tested, stakeholder demos completed, MVP validated for approval
+- 6 story points across US-017 (5 pts) and US-018 (1 pt); significant non-story work (testing, demos, docs)
+- Created `docs/SPRINT_4_PLAN.md` — full day-by-day plan, test checklists, demo script, feedback form
+
+### Sprint 4 Stories Reviewed
+- **US-017 View Patient Dashboard (5 pts):** All components on one screen, no scroll at 1920×1080, loads < 1 second, updates on data change
+- **US-018 Patient Header Display (1 pt):** Name prominent, ID/Protocol/Start Date visible, header stays visible, correct patient shown
+
+### Non-Story Work Planned
+
+| Activity | Days |
+|----------|------|
+| End-to-end integration testing | 34–35 |
+| Bug fixes | 36 |
+| UI polish + performance | 37 |
+| Documentation + demo prep | 38 |
+| Stakeholder demo #1 | 39 |
+| Stakeholder demo #2 + wrap-up | 40 |
+
+### Layout Decision
+- Two-row grid layout chosen (Option A): header row 0 fixed, timeline row 1 fixed, Labs+Chart row 2 expandable
+- Bottom section: Labs 35% / Chart 65%
+- `grid` geometry manager (not `pack`) for main dashboard
+
+### Decisions
+- `PatientHeader` will be a dedicated component in `src/views/components/patient_header.py`
+- Header typography: FONT_TITLE for name, FONT_LABEL for details row — no hardcoded sizes
+- Header colors: FG for name, FG_MUTED for details, BG_ALT background
+
+### Next
+- Day 32: Implement dashboard grid structure and place all components
+- Day 33: Build PatientHeader component, finalize integration, mark US-017 and US-018 Done
+
+---
+
 ## 2026-04-09 — Sprint 3 Days 28–30 (Testing, Polish, Review)
 
 ### Day 28 — Comprehensive Acceptance Testing
