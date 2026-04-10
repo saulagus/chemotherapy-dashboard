@@ -83,8 +83,8 @@ class DashboardView(tk.Frame):
         content = tk.Frame(self, bg=BG, padx=16, pady=16)
         content.pack(fill='both', expand=True)
         content.columnconfigure(0, weight=1)
-        content.rowconfigure(0, weight=1)  # timeline grows to fill space
-        content.rowconfigure(1, weight=0)  # labs takes only what it needs
+        content.rowconfigure(0, weight=0)  # timeline fixed height
+        content.rowconfigure(1, weight=1)  # labs+chart expand to fill space
 
         # ── Timeline component ─────────────────────────────────────────────────
         timeline_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
@@ -100,9 +100,10 @@ class DashboardView(tk.Frame):
 
         # ── Bottom section: labs + chart side by side ──────────────────────────
         bottom = tk.Frame(content, bg=BG)
-        bottom.grid(row=1, column=0, sticky='ew')
-        bottom.columnconfigure(0, weight=3)   # labs ~30%
-        bottom.columnconfigure(1, weight=7)   # chart ~70%
+        bottom.grid(row=1, column=0, sticky='nsew')
+        bottom.rowconfigure(0, weight=1)
+        bottom.columnconfigure(0, weight=1)   # labs ~35%
+        bottom.columnconfigure(1, weight=2)   # chart ~65%
 
         self.labs_panel = LatestLabsPanel(bottom, self.app.conn,
                                           on_add_labs=self._on_add_labs)
