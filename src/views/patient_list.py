@@ -158,7 +158,7 @@ class PatientListView(tk.Frame):
                 completed = sum(1 for c in cycles if c.status == 'completed')
                 current_cycle = f"{completed}/{patient.total_cycles or '?'}"
             else:
-                current_cycle = '-'
+                current_cycle = f"0/{patient.total_cycles or 8}"
 
             # 'even'/'odd' drives the alternating stripe; patient.id enables tag-based id lookup.
             stripe = 'even' if index % 2 == 0 else 'odd'
