@@ -333,10 +333,6 @@ class TimelineComponent(tk.Frame):
 
     def _update_status_label(self, cycle_map: dict) -> None:
         """Set the status text above the timeline based on cycle progress."""
-        if not self.cycles:
-            self.status_label.config(text="No cycle data available.")
-            return
-
         if self.current_cycle_number is None:
             self.status_label.config(text="Treatment Complete")
             return
