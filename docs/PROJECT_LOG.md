@@ -2,6 +2,49 @@
 
 ---
 
+## 2026-04-13 — Sprint 4 Day 37 (UI Polish)
+
+### Polish Actions
+- Fixed `main.py` root window background: `'#1e1e1e'` → `BG` constant — now consistent with palette
+- Grep audit confirmed zero hardcoded font sizes or hex colors in Sprint 4 files (`dashboard.py`, `patient_header.py`)
+- 214 tests passing — no regression from polish changes
+
+### Visual Consistency Audit — Sprint 4 Files
+| File | Hardcoded fonts | Hardcoded colors | Result |
+|------|----------------|-----------------|--------|
+| `dashboard.py` | None | None | ✅ Clean |
+| `patient_header.py` | None | None | ✅ Clean |
+
+### Performance Status (from Day 35 — no changes needed)
+| Operation | Target | Actual |
+|-----------|--------|--------|
+| `get_all_patients()` 20 patients | < 100ms | 0.1ms |
+| `get_latest_lab()` | < 100ms | 0.0ms |
+| `chart.refresh()` 20 labs | < 500ms | 26.4ms |
+
+### Manual Visual Inspection Checklist
+Items requiring live app verification (`python src/main.py`):
+
+- [ ] Empty state "No patients" message centered and readable
+- [ ] New patient shows `0/8` in Current Cycle column
+- [ ] New patient dashboard: `Current: Cycle 1 (AC Phase)` shown
+- [ ] Completed cycle: green box with ✓
+- [ ] Current cycle: navy box with blue border
+- [ ] Dose-modified cycle: orange ⚠ badge visible
+- [ ] ANC value color-coded with dot + status label
+- [ ] Dashed threshold line at 1.5 visible on chart
+- [ ] All dialogs open centered on parent
+- [ ] Window resize: components scale, nothing clips
+
+### Decisions
+- Pre-Sprint 4 hardcoded colors in dialogs and labs panel left as-is — out of Sprint 4 scope, no functional impact
+- No performance optimization needed — all targets already beaten by wide margins
+
+### Next
+- Day 38: Documentation completion + demo preparation
+
+---
+
 ## 2026-04-10 — Sprint 4 Day 31 (Sprint Planning)
 
 ### Sprint 4 Kickoff
