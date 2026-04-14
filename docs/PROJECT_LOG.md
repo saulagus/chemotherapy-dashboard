@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-04-14 — Sprint 4 Day 38 (Documentation & Demo Prep)
+
+### Deliverables
+- **README.md** — full rewrite: updated features list, added ANC color key table, fixed setup instructions, updated project structure with all Sprint 3+4 files, updated test count to 214
+- **docs/DEMO_SCRIPT.md** — created: timed 15–20 min script with pre-demo checklist, segment talking points, anticipated Q&A table, and failure recovery plan
+- **docs/FEEDBACK_FORM.md** — created: stakeholder form with overall impression, usability rating, 30-second review test table, value assessment, feature feedback, concerns, and MVP approval block with signature
+- **docs/USER_GUIDE.md** — Sprint 4 updates: fixed "+ Add Labs" location reference (header, not nav bar), added Dashboard Overview section, added Patient Header section, added 30-Second Review tips section
+
+### Test Count
+214 tests — no new tests for documentation day
+
+### Decisions
+- Demo script structured as timed segments so presenter can pace without checking a clock
+- Q&A table includes honest answers about EHR integration, multi-user, and other v1.0 limitations
+- Feedback form MVP approval block has three tiers: Approved / Conditionally approved / Not approved
+
+---
+
 ## 2026-04-13 — Sprint 4 Day 37 (UI Polish)
 
 ### Polish Actions

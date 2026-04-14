@@ -42,6 +42,30 @@ Dates must be in **YYYY-MM-DD** format.
 
 ---
 
+## Dashboard Overview
+
+Open a patient's dashboard by double-clicking any row in the patient list. The dashboard is a single unified screen — no scrolling required. It is divided into four sections:
+
+| Section | Location | Purpose |
+|---------|----------|---------|
+| Patient Header | Top | Identity, navigation, and quick actions |
+| Treatment Timeline | Middle | Visual 8-cycle progress tracker |
+| Latest Labs | Lower-left | Most recent lab draw with ANC color coding |
+| ANC Trend Chart | Lower-right | ANC history plotted over time |
+
+---
+
+## Understanding the Patient Header
+
+The **Patient Header** runs across the top of the dashboard and contains:
+
+- **← Back** button (top-left) — returns to the Patient List
+- **+ Add Labs** button (top-right) — opens the lab entry dialog
+- **Patient name** in large text
+- **Detail row** showing: Patient ID · Protocol · Treatment start date
+
+---
+
 ## Viewing the Treatment Timeline
 
 Open a patient's dashboard by double-clicking their row in the patient list.
@@ -124,7 +148,7 @@ This action is permanent and cannot be undone.
 ## Adding Lab Values
 
 1. Open a patient's dashboard
-2. Click **+ Add Labs** in the top-right navigation bar
+2. Click **+ Add Labs** in the top-right of the Patient Header
 3. Fill in the fields:
    - **Lab Date** — defaults to today (YYYY-MM-DD format, required)
    - **ANC** — Absolute Neutrophil Count in K/μL (required)
@@ -173,6 +197,19 @@ The **ANC Trend Chart** (lower-right of the dashboard) shows how ANC has changed
 - **Dashed red line** — the 1.5 K/μL threshold (lower edge of Normal range)
 
 If no labs have been recorded, the chart shows "No lab data to display." If only one lab exists, it shows the single point with a note to add more labs to see a trend.
+
+---
+
+## 30-Second Patient Review
+
+The dashboard is designed so you can assess a patient's full treatment status in under 30 seconds:
+
+1. **Cycle progress** — glance at the timeline. Count green boxes for completed cycles; the navy box is the current cycle.
+2. **Dose modifications** — look for orange ⚠ badges on completed cycles. Hover to see the reason.
+3. **Latest ANC** — check the Latest Labs panel (lower-left). The ANC value is color-coded and labeled by severity.
+4. **ANC trend** — look at the chart (lower-right). Is the line rising, falling, or flat? Are recent markers green or red?
+
+All four points are visible without scrolling or clicking.
 
 ---
 
