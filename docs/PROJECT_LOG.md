@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-04-14 — Sprint 4 Day 39 (Stakeholder Demo #1)
+
+### Pre-Demo Setup
+- Created `generate_demo_data.py` — deterministic demo data script replacing random test data
+- Three dedicated demo patients with fixed, predictable state:
+  - **DEMO-001 A. Rivera** — 5/8 cycles, Cycle 3 @ 75% dose reduction (Neutropenia), 5 lab draws spanning all four ANC colors
+  - **DEMO-002 M. Chen** — 1/8 cycles, Cycle 2 current (used for live cycle completion during demo)
+  - **DEMO-003 P. Wallace** — 8/8 cycles complete, 8 lab draws across full treatment
+- Database backed up to `chemo_dashboard_demo_backup.db` before demo
+
+### Demo #1 Results
+
+**Stakeholder:** _______________________________________________
+
+**Overall Reception:** ☐ Very Positive  ☐ Positive  ☐ Mixed  ☐ Needs Work
+
+**30-Second Review:** ___ seconds  ☐ Passed  ☐ Close  ☐ Failed
+
+**Key Positive Feedback:**
+1.
+2.
+3.
+
+**Suggestions / Requests:**
+1.
+2.
+
+**Approval:** ☐ Approved  ☐ Conditional  ☐ Changes needed
+
+**Required Changes (if any):**
+1.
+
+### Post-Demo Actions
+- Feedback categorized into: positive / quick fixes / v1.1 features / concerns
+- Demo script adjustments for Demo #2: _______________________________________________
+
+---
+
 ## 2026-04-14 — Sprint 4 Day 38 (Documentation & Demo Prep)
 
 ### Deliverables
