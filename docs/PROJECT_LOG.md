@@ -2,6 +2,72 @@
 
 ---
 
+## 2026-04-15 — Sprint 4 Day 40 (Stakeholder Demo #2 + Project Wrap-Up)
+
+### Pre-Demo Setup
+- Reset demo data via `python3 generate_demo_data.py` — clean state for Demo #2
+- Demo data confirmed: DEMO-001 (mid-treatment), DEMO-002 (early, for live completion), DEMO-003 (complete)
+
+### Demo #2 Results
+
+**Stakeholder:** _______________________________________________
+
+**Overall Reception:** ☐ Very Positive  ☐ Positive  ☐ Mixed  ☐ Needs Work
+
+**30-Second Review:** ___ seconds  ☐ Passed  ☐ Close  ☐ Failed
+
+**Key Positive Feedback:**
+1.
+2.
+3.
+
+**Suggestions / Requests:**
+1.
+2.
+
+**Approval:** ☐ Approved  ☐ Conditional  ☐ Changes needed
+
+### MVP Approval Status
+
+| Demo | Stakeholder | Approval |
+|------|-------------|---------|
+| Demo #1 | _______________ | ☐ Approved  ☐ Conditional  ☐ Not approved |
+| Demo #2 | _______________ | ☐ Approved  ☐ Conditional  ☐ Not approved |
+
+**Overall MVP Status:** ☐ APPROVED  ☐ NEEDS WORK
+
+### Sprint 4 Story Verification
+
+| Story | Title | Points | Status |
+|-------|-------|--------|--------|
+| US-017 | View Patient Dashboard | 5 | ✅ Done |
+| US-018 | Patient Header Display | 1 | ✅ Done |
+
+**Sprint 4: 6/6 points delivered.**
+
+### Sprint 4 Retrospective
+
+**What went well:**
+- Layout architecture decision (two-row grid, fixed header/timeline, expandable bottom) was correct from the start — no backtracking
+- PatientHeader extraction into its own component was clean; no rework needed
+- Integration testing (Day 34–35) caught two real bugs before demo (patient list 0/8, timeline status label)
+- Performance targets beaten by wide margins on every metric
+
+**What could be improved:**
+- Some dialogs retained hardcoded colors from earlier sprints — a visual consistency audit at the end of Sprint 3 would have caught these before Sprint 4
+- Demo data generation was added in Day 39 — earlier creation would have allowed more time to rehearse with realistic patient states
+
+**What to do differently next sprint:**
+- Add a demo data script at the start of any sprint with a stakeholder-facing output
+- Run a grep audit for hardcoded colors and fonts at the end of every sprint, not just Sprint 4
+
+### Deliverables
+- `docs/PROJECT_SUMMARY.md` — project record: timeline, milestones, velocity, test coverage, performance, sign-off
+- `docs/BACKLOG_V1_1.md` — prioritized feature backlog compiled from demo feedback and pre-identified gaps
+- `v1.0.0` — release tag pushed to GitHub
+
+---
+
 ## 2026-04-14 — Sprint 4 Day 39 (Stakeholder Demo #1)
 
 ### Pre-Demo Setup
