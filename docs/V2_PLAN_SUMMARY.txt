@@ -1,0 +1,472 @@
+================================================================================
+  AC-T CHEMOTHERAPY DASHBOARD — V2 PLAN SUMMARY
+================================================================================
+  Date:         2026-04-22
+  Status:       FINAL — ready for specialist review and development
+  Author:       Solo developer (with clinical specialist support)
+  Builds on:    v1.0 (shipped; 214 passing tests; <0.1s dashboard load)
+================================================================================
+
+
+--------------------------------------------------------------------------------
+  1.  EXECUTIVE OVERVIEW
+--------------------------------------------------------------------------------
+
+  Duration:     ~13 weeks / 65 story points / 6 sprints (US-017 through US-042)
+  Effort model: ~4–5 productive hours/day; 1 pt ~= half-day
+  Stack:        Python 3.12 + Tkinter + SQLite + matplotlib (unchanged)
+  Approach:     Evolution, not rewrite. Introduce services/, clinical/ (rules
+                engine), reports/, migrations/ layers inside the existing app.
+
+  Theme arc:    Data integrity → Cardiotoxicity safety → Toxicity tracking
+                → Workflow & alerts → Reporting → Polish
+
+  Primary clinical wins:
+    - Safe edit/delete with full audit trail
+    - Cumulative anthracycline dose + LVEF monitoring
+    - CTCAE peripheral neuropathy grading
+    - Infusion reaction log + G-CSF admin log + symptom quick-entry
+    - Pre-cycle safety checklist (cross-cutting gate)
+    - Next-cycle-due status across patient list; low-ANC alerts
+    - One-page PDF patient summary (three audiences)
+    - Backup/restore + institutional configuration layer
+
+
+--------------------------------------------------------------------------------
+  2.  V2 SCOPE — IN / DEFERRED / OUT-OF-SCOPE
+--------------------------------------------------------------------------------
+
+  IN V2:
+    [H1]  Edit / delete patient, cycle, lab  (with audit trail)
+    [H3]  Low-ANC alert banner
+    [H4]  Toxicity tracking (neuropathy, infusion reactions, top symptoms)
+    [H5]  PDF export (one-page, three audiences)
+    [M2]  Search / filter / sort patient list
+    [M3]  Print-friendly view (via PDF)
+    [M5]  Dose-modification history view
+    [L4]  Audit trail (required by edit/delete)
+    [L5]  Simple "cycle due" status (no OS-level toasts)
+    [N1]  Cumulative anthracycline dose tracking         [SAFETY CRITICAL]
+    [N2]  LVEF / cardiac function tracking               [SAFETY CRITICAL]
+    [N3]  Peripheral neuropathy CTCAE grading            [SAFETY CRITICAL]
+    [N4]  Pre-cycle safety checklist                     [SAFETY CRITICAL]
+    [N5]  Next-cycle-due status (on patient list)
+    [N6]  Infusion hypersensitivity reaction log
+    [N7]  Growth factor (G-CSF) administration log
+    [N8]  BSA / height / weight per cycle
+    [N9]  Audit trail
+    [N10] Backup / restore
+    [N11] Symptom quick-entry (nausea, fatigue, mucositis, constipation
+          + arthralgia & peripheral edema in T phase)
+    [N12] Hospitalization / ER visit capture
+    [N14] Clinical-rules engine module (infrastructure)
+    [---] Institutional configuration layer (YAML)
+
+  DEFERRED TO V3:
+    [H2]  EHR / HL7 FHIR integration               (requires hospital IT)
+    [M1]  Multi-user + PostgreSQL                  (separate body of work)
+    [M4]  Other regimens (TCHP, CMF, FEC, TC)      (each is V2-sized)
+    [L1]  Web deployment                           (unjustified until V2 lands)
+    [L2]  Mobile access                            (depends on L1)
+    [L3]  CSV import (bulk historical)             (manual entry fine at scale)
+    [L6]  Protocol comparison view                 (needs M4)
+    [N13] ECOG performance status                  (stretch if sprint room)
+    [N15] Port / line patency                      (V3 workflow sprint)
+    [N16] Cohort outlier detection                 (needs accumulated data)
+    [N17] Patient-facing PRO app                   (different product)
+    [N18] MD e-sign workflow                       (needs multi-user)
+    [N19] QI / pathway adherence metrics           (needs 6–12mo of data)
+    [N20] Medication / allergy / premed management (V3 pharmacy sprint)
+
+  EXPLICITLY OUT-OF-SCOPE FOR V2 (avoid scope creep):
+    - AC-T + trastuzumab (AC-TH) tracking           — V3
+    - Weekly paclitaxel cadence (16-event T phase)  — V3 (breaks 8-cycle UI)
+    - Cyclophosphamide cumulative dose tracking     — V3 (doxorubicin only)
+    - Encrypted backups (SQLCipher)                 — V3 (physical security docs)
+    - Internationalization / imperial units         — V3 (metric only in V2)
+    - Multi-protocol support (AC-T only in V2)      — V3
+
+
+--------------------------------------------------------------------------------
+  3.  ARCHITECTURE EVOLUTION
+--------------------------------------------------------------------------------
+
+  The stack stays. The layering evolves. V1.0 put most logic in UI handlers;
+  V2 introduces four new internal layers:
+
+    services/     — owns all DB writes; emits audit events in same transaction
+    clinical/     — pure-function rules engine (thresholds, grading, scheduling)
+    reports/      — reportlab PDF + stdlib CSV generation
+    migrations/   — numbered Python scripts with up()/down() per migration
+    config/       — institution.yaml read via Pydantic at startup
+
+  UI stays Tkinter but the monolithic dashboard window decomposes into panels
+  (header, timeline, labs, cardiotoxicity, toxicity, alerts) so new features
+  don't bloat a god-object. SQLite stays — audit_log table with JSON before/
+  after fields is sufficient compliance plumbing for a single-user tool. No
+  new top-level dependencies beyond reportlab (PDF) and pydantic (config
+  validation).
+
+  Principle: v1.0 was a dashboard; V2 is a dashboard backed by a clinical
+  decision-support engine — the code layout should reflect that.
+
+
+--------------------------------------------------------------------------------
+  4.  SPRINT PLAN
+--------------------------------------------------------------------------------
+
+================================================================================
+  SPRINT 5 — DATA INTEGRITY FOUNDATION
+================================================================================
+  Duration:  12 days
+  Points:    14
+  Goal:      A nurse can correct or remove any record she's entered with a
+             complete audit trail. Schema migrations and institution config
+             are in place so all subsequent sprints stand on safe ground.
+
+  US-017  Schema migration framework                                  (2 pts)
+  US-017a Institutional configuration framework                       (2 pts)
+  US-018  Audit log infrastructure                                    (3 pts)
+  US-019  Edit patient demographics + soft-delete + dose-density      (2 pts)
+  US-020  Edit / delete cycle record                                  (2 pts)
+  US-021  Edit / delete lab value                                     (1 pt)
+  US-022  Patient history / audit viewer                              (2 pts)
+
+  Sequencing: US-017 → US-017a → US-018 → (US-019, US-020, US-021 parallel)
+              → US-022. Audit MUST land before edit/delete stories.
+
+  Key technical notes:
+    - Migrations: numbered Python scripts with up(conn)/down(conn) — no Alembic
+    - Audit actor: os.getlogin() in V2 (real auth = V3)
+    - Soft-delete: deleted_at column; update EVERY patient query
+    - US-019 adds dose_density enum: {standard_q3w, dose_dense_q2w}
+
+
+================================================================================
+  SPRINT 6 — CARDIOTOXICITY SAFETY
+================================================================================
+  Duration:  10 days
+  Points:    11
+  Goal:      Every AC cycle's anthracycline dose tracked in mg/m²; cumulative
+             dose visible; LVEF captured; nurse sees clear warning as patient
+             approaches the threshold.
+
+  US-023  BSA / height / weight per cycle (+ mini dose calculator)    (3 pts)
+  US-024  Cumulative anthracycline dose calculation                   (3 pts)
+  US-025  LVEF / cardiac assessment tracking                          (2 pts)
+  US-026  Cardiotoxicity risk badge + cumulative-dose warning         (3 pts)
+
+  Sequencing: US-023 → US-024 → US-026.  US-025 parallel to US-024.
+
+  Key technical notes:
+    - BSA default = Mosteller: sqrt(height_cm * weight_kg / 3600)
+    - DuBois available via config.cardiotoxicity.bsa_formula
+    - Warn on >10% weight change from prior measurement
+    - Only doxorubicin tracked cumulatively in V2 (not cyclophosphamide)
+    - Prior-anthracycline exposure field on patient demographics
+    - Equivalence factors (dox 1.0, epi 0.5, dauno 0.5, ida 5.0, mito 4.0)
+      read from config; NOT hardcoded
+    - Badge states: green (<yellow threshold) / yellow / red / hard-stop
+    - Red state = soft-block on AC cycle completion (override + reason audited)
+    - Hard-stop (default 450 mg/m²) = hard-block; requires attending override
+
+
+================================================================================
+  SPRINT 7 — TOXICITY TRACKING
+================================================================================
+  Duration:  10 days
+  Points:    11
+  Goal:      Clinical picture expands beyond labs. Neuropathy, infusion
+             reactions, G-CSF admin, and top symptoms are all captured
+             and feed downstream safety checks.
+
+  US-027  Peripheral neuropathy CTCAE grading                         (3 pts)
+  US-028  Infusion hypersensitivity reaction log                      (3 pts)
+  US-029  Growth factor (G-CSF) administration log                    (2 pts)
+  US-030  Symptom quick-entry                                         (3 pts)
+
+  Sequencing: all largely independent; any order.
+
+  Key technical notes:
+    - Neuropathy: separate sensory and motor grades 0–4; CTCAE v5.0
+    - Grade→action mapping lives in config.neuropathy_actions
+    - Infusion reactions: cycle, onset_min, severity, symptoms[], response,
+      rechallenge_outcome — all configurable vocabularies
+    - ANC chart markers must indicate G-CSF-stimulated counts (different glyph)
+    - Symptom set configurable; default {nausea, fatigue, mucositis,
+      constipation}; T-phase adds {arthralgia, peripheral_edema}
+    - All toxicity data surfaces in the Sprint 8 pre-cycle checklist
+
+
+================================================================================
+  SPRINT 8 — WORKFLOW & ALERTS
+================================================================================
+  Duration:  11 days
+  Points:    11
+  Goal:      Nurse opens app Monday morning and immediately sees who's due,
+             who's overdue, who has unsafe labs, who's approaching risk
+             thresholds. Pre-cycle checklist enforces safety before completion.
+
+  US-031  Patient list search + filter + sort                         (2 pts)
+  US-032  Next-cycle-due / overdue status                             (3 pts)
+  US-033  Pre-cycle safety checklist                                  (4 pts)
+  US-034  Low-ANC alert banner                                        (2 pts)
+
+  Sequencing: US-031, US-034 independent; US-032 depends on US-019
+              (dose-density attribute); US-033 depends on Sprints 6+7 data.
+
+  Key technical notes:
+    - Expected cycle date = last_cycle_date + cadence_days (q3w=21, q2w=14)
+    - Color coding: green on schedule / yellow due this week / red overdue
+    - Pre-cycle checklist is THE most complex story in V2 — weaves every
+      prior sprint's data through the rules engine:
+         * ANC >= threshold (config, differs for AC vs T vs dose-dense)
+         * Platelets >= 100k (config)
+         * Labs drawn within 72h (config)
+         * No active infection (nurse attestation)
+         * Cumulative dose headroom >= next planned dose (AC only)
+         * Neuropathy grade <= 1 (T only)
+         * No active Grade >=3 symptoms
+         * LVEF acceptable (AC only)
+    - Each rule = one pure function in clinical/, independently unit-tested
+    - Rule modes per config: advisory / soft-block / hard-block
+    - Low-ANC banner: red <500, orange 500–999; dismissible per session
+
+
+================================================================================
+  SPRINT 9 — REPORTING & EXPORT
+================================================================================
+  Duration:  9 days
+  Points:    9
+  Goal:      One-click PDF patient summary (three audiences); dose-mod history
+             view; CSV lab export; print-friendly dashboard.
+
+  US-035  PDF patient summary export (oncologist + PCP + patient)     (4 pts)
+  US-036  Dose modification history view                              (2 pts)
+  US-037  CSV lab export                                              (1 pt)
+  US-038  Print-friendly dashboard view                               (2 pts)
+
+  Sequencing: US-036 first (simpler); then US-035; US-037/US-038 independent.
+
+  Key technical notes:
+    - reportlab for PDF; stdlib csv for CSV
+    - Three PDF templates share one data-gathering query; differ in layout
+         * Oncologist: dense, 1–2 pages (MUST-SHIP)
+         * PCP: summary + referral guidance, 1 page (stretch)
+         * Patient-facing: plain language, large type, 1 page (stretch)
+    - If sprint runs long, ship oncologist template only; defer PCP + patient
+    - Golden-file tests for each PDF template (reproducible output)
+    - Matplotlib charts embedded via BytesIO -> PNG
+    - CSV export filename includes patient ID + export date
+    - Print-friendly view = second PDF template over the same dashboard data
+
+
+================================================================================
+  SPRINT 10 — POLISH & RELIABILITY
+================================================================================
+  Duration:  9 days
+  Points:    9
+  Goal:      V2 is production-ready. Backup/restore works; keyboard flow is
+             fast; performance goals hold; release docs ready.
+
+  US-039  Backup / restore database                                   (3 pts)
+  US-040  Keyboard shortcuts & accessibility pass                     (2 pts)
+  US-040a Settings inspection dialog (read-only config view)          (1 pt)
+  US-041  Performance & test-coverage hardening                       (2 pts)
+  US-042  V2 documentation & release prep                             (1 pt)
+
+  Sequencing: any order; US-042 last.
+
+  Key technical notes:
+    - Backup: SQLite online backup API (not file copy); plain .db file
+      portable and recoverable without the app
+    - Restore: rename current DB to .pre-restore; no silent overwrite
+    - Backup reminder at configurable interval (default 7 days)
+    - Shortcuts: Ctrl+N new, Ctrl+L labs, Ctrl+F search, Ctrl+B backup
+    - Perf target: dashboard <200ms at 100 patients x 8 cycles x 20 labs
+    - Test coverage target: >=85% on clinical/ and services/
+    - US-042 produces: RELEASE_NOTES_V2.md, upgrade guide, updated README,
+      training demo script
+
+
+--------------------------------------------------------------------------------
+  5.  INSTITUTIONAL CONFIGURATION LAYER
+--------------------------------------------------------------------------------
+
+  Every clinical threshold and rule reads from config/institution.yaml,
+  validated via Pydantic at startup. Resolution order:
+
+      hard-coded defaults  →  institution YAML  →  session overrides
+
+  CONFIGURABLE:
+    - All thresholds (ANC, platelets, cumulative dose, LVEF, lab freshness)
+    - Anthracycline equivalence factors
+    - BSA formula (Mosteller / DuBois)
+    - Dose-modification tier set
+    - Dose-density options enabled
+    - G-CSF prophylaxis policy
+    - CTCAE version (5.0 default; 4.03 for legacy sites)
+    - Neuropathy grade → action mapping
+    - Infusion reaction rechallenge policy
+    - Symptom set (all-phases + T-phase additional)
+    - Blocking mode per rule (advisory / soft_block / hard_block)
+    - Pre-cycle checklist item selection
+    - Backup reminder interval; daily worklist lookahead
+    - Institution name, logo, PDF branding
+    - Patient ID regex
+
+  NOT CONFIGURABLE (by design):
+    - CTCAE grade definitions (NCI-owned)
+    - Audit logging behavior (always on)
+    - Anything that would cause under-reporting of a safety signal
+    - Schema-level data model (add via migration, not config)
+
+
+--------------------------------------------------------------------------------
+  6.  CLINICAL DEFAULTS (from published guidelines; configurable)
+--------------------------------------------------------------------------------
+
+  CARDIOTOXICITY
+    Cumulative doxorubicin:   yellow 300 / red 400 / hard-stop 450 mg/m²
+    Equivalence factors:      dox 1.0 | epi 0.5 | dauno 0.5 | ida 5.0 | mito 4.0
+    LVEF absolute hold:       <50%
+    LVEF delta hold:          drop >=10 points AND <55%
+    LVEF review flag:         drop >=16 points
+    LVEF cadence (AC-T):      baseline + end-of-AC
+
+  PRE-CYCLE THRESHOLDS
+    ANC (AC, T):              >=1500/uL
+    ANC (dose-dense):         >=1000/uL from cycle 2
+    Platelets:                >=100,000/uL
+    Lab freshness:            <=72 h from draw to administration
+
+  NEUROPATHY → ACTION
+    Grade 0–1:                continue full dose
+    Grade 2:                  hold 1 cycle, resume at -20%
+    Grade 3:                  hold until <=Grade 1, resume at -25%;
+                              discontinue on recurrence
+    Grade 4:                  discontinue permanently
+
+  INFUSION REACTION RECHALLENGE
+    Grade 1:                  slow rate 50%, continue
+    Grade 2:                  stop, rescue meds, restart 50%, enhance premeds
+    Grade 3:                  do not rechallenge; switch to nab-paclitaxel/doce
+    Grade 4 (anaphylaxis):    never rechallenge (hard-block)
+
+  DOSE-MODIFICATION TIERS:   100% / 80% / 75% / 60% / 50% / 0%
+
+  SYMPTOM QUICK-ENTRY
+    All phases:               nausea, fatigue, mucositis, constipation
+    T-phase additional:       arthralgia/myalgia, peripheral edema
+
+  CTCAE version:              5.0
+
+  G-CSF POLICY
+    Dose-dense AC:            primary prophylaxis (pegfilgrastim every cycle)
+    Standard AC:              primary only if FN risk factors; secondary otherwise
+
+  BLOCKING MODES
+    Hard-block:   cumulative dose >= hard-stop, Grade 4 reaction rechallenge
+    Soft-block:   ANC/plt below threshold, Grade 3 neuropathy before T,
+                  LVEF <50%, cumulative dose red
+    Advisory:     Grade 2 neuropathy, Grade >=3 symptoms, labs >72h
+
+
+--------------------------------------------------------------------------------
+  7.  QUESTIONS FOR SPECIALISTS (before development starts)
+--------------------------------------------------------------------------------
+
+  With the config layer, the specialist conversation simplifies to:
+  "Here are defensible defaults from published guidelines. Which do you
+  override, and to what values?" — a 20-minute review over one YAML diff.
+
+  MUST ANSWER BEFORE SPRINT 6 (CARDIOTOXICITY):
+    [!] Cumulative doxorubicin yellow/red/hard-stop thresholds
+    [!] Prior-anthracycline equivalence factors (accept defaults?)
+    [!] LVEF hold thresholds (absolute + delta)
+    [ ] LVEF modality preference (echo vs MUGA)
+
+  MUST ANSWER BEFORE SPRINT 7 (TOXICITY):
+    [!] Neuropathy grade → action mapping (accept defaults?)
+    [!] Infusion reaction rechallenge policy (accept defaults?)
+    [ ] CTCAE version (5.0 default; 4.03 if legacy)
+    [ ] Symptom set for quick-entry panel (accept 4+2 default?)
+
+  MUST ANSWER BEFORE SPRINT 8 (WORKFLOW & ALERTS):
+    [!] Pre-cycle ANC threshold (same for AC/T? lower for dose-dense?)
+    [!] Pre-cycle platelet threshold
+    [ ] Dose-density options supported (standard q3w, dose-dense q2w, both?)
+    [ ] G-CSF prophylaxis policy (primary vs secondary, when?)
+    [ ] Labs-within-72h rule (72h default; confirm)
+    [ ] Blocking vs advisory mode per rule (accept defaults?)
+
+  IMPORTANT BUT NOT BLOCKING:
+    [ ] Dose-modification tier set (accept 100/80/75/60/50/0?)
+    [ ] ECOG capture frequency (per-cycle default)
+    [ ] Hospitalization capture scope (accept 6-category reason list?)
+    [ ] PDF audiences (oncologist must-ship; PCP + patient stretch)
+
+  WORKFLOW & ADOPTION:
+    [ ] Nurse workflow timing (labs before or after nurse visit?)
+    [ ] Paper fallback (daily worklist PDF — confirm lookahead default 7d)
+    [ ] Hard-gate vs advisory preference for checklist
+
+  V3 PLANNING (non-blocking):
+    [ ] EHR system (Epic priority?)
+    [ ] Regimen expansion priority ranking
+    [ ] Cohort analytics opt-in or opt-out?
+
+  [!] = patient-safety critical
+
+
+--------------------------------------------------------------------------------
+  8.  RISKS & MITIGATIONS
+--------------------------------------------------------------------------------
+
+  RISK:       Sprint 8 (pre-cycle checklist) is the largest cross-cutting
+              story; it depends on every prior sprint's data model.
+  MITIGATION: Build each rule as an independent pure function with its own
+              tests before integration; rules can land incrementally.
+
+  RISK:       Schema migration on a real user's v1.0 DB could fail mid-run.
+  MITIGATION: Back up DB before every migration (US-017); wrap each
+              migration in a transaction; ship a rollback test fixture.
+
+  RISK:       Clinical thresholds hard-coded become painful to change
+              mid-development or per-institution.
+  MITIGATION: Config layer (US-017a) in Sprint 5. Every rule reads config.
+              No magic numbers in code.
+
+  RISK:       PDF layout churn during Sprint 9 could consume budget.
+  MITIGATION: Ship oncologist template first (must); PCP + patient are
+              stretch and can defer to V2.1 if needed.
+
+  RISK:       Scope creep from "while you're in there" feature requests.
+  MITIGATION: This document — Section 2 "Explicitly Out-of-Scope" is a
+              refusal list. AC-TH, weekly paclitaxel, other regimens
+              are V3, not V2.
+
+  RISK:       Solo developer burnout on a 13-week project.
+  MITIGATION: Sprint 10 explicitly labeled polish — resist adding stories.
+              Ship V2 when it's done; V2.1 handles follow-up.
+
+
+--------------------------------------------------------------------------------
+  9.  POINT TOTAL SUMMARY
+--------------------------------------------------------------------------------
+
+  Sprint 5    Data Integrity Foundation     14 pts    12 days
+  Sprint 6    Cardiotoxicity Safety         11 pts    10 days
+  Sprint 7    Toxicity Tracking             11 pts    10 days
+  Sprint 8    Workflow & Alerts             11 pts    11 days
+  Sprint 9    Reporting & Export             9 pts     9 days
+  Sprint 10   Polish & Reliability           9 pts     9 days
+                                          --------  --------
+                                          65 pts    61 days
+
+  ~13 weeks of solo development at 4–5 productive hours/day
+
+
+================================================================================
+  END OF V2 PLAN SUMMARY
+================================================================================
