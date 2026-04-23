@@ -3,7 +3,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
-from models import Cycle, add_cycle, update_cycle
+from models import Cycle
+from services.cycles import create_cycle, update_cycle
 
 log = logging.getLogger(__name__)
 
@@ -439,7 +440,7 @@ class CycleCompletionDialog(tk.Toplevel):
 
         try:
             if self.cycle is None:
-                add_cycle(self.conn, Cycle(
+                create_cycle(self.conn, Cycle(
                     patient_id=self.patient_id,
                     cycle_number=self.cycle_number,
                     phase=phase,

@@ -1,7 +1,9 @@
 import tkinter as tk
 from datetime import date
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
-from models import Cycle, add_cycle, update_cycle
+from tkinter import messagebox
+from models import Cycle
+from services.cycles import create_cycle, update_cycle, delete_cycle
 
 
 class CycleCompletionDialog(tk.Toplevel):
@@ -220,7 +222,7 @@ class CycleCompletionDialog(tk.Toplevel):
                 dose_reason=dose_reason,
                 notes=notes,
             )
-            add_cycle(self.conn, new_cycle)
+            create_cycle(self.conn, new_cycle)
         else:
             # Update existing row
             self.cycle.actual_date  = actual_date
@@ -301,6 +303,11 @@ class CycleDetailDialog(tk.Toplevel):
         edit.pack(side='right', padx=(0, 12))
         edit.bind('<Button-1>', lambda e: self._open_edit())
 
+        delete = tk.Label(btn_row, text="Delete", font=('Arial', FONT_BODY),
+                          bg=BG, fg='#e05555', cursor='hand2', padx=10)
+        delete.pack(side='left')
+        delete.bind('<Button-1>', lambda e: self._on_delete())
+
     def _row(self, parent, label, value):
         row = tk.Frame(parent, bg=BG)
         row.pack(fill='x', pady=4)
@@ -323,3 +330,17 @@ class CycleDetailDialog(tk.Toplevel):
             self.master, self.conn, self.patient_id,
             self.cycle.cycle_number, self.cycle, self.on_save
         )
+
+    def _on_delete(self):
+        confirmed = messagebox.askyesno(
+            "Delete Cycle",
+            f"Delete cycle {self.cycle.cycle_number} record?\n"
+            f"This cannot be undone. The event is kept in the audit trail.",
+            parent=self,
+        )
+        if not confirmed:
+            return
+        delete_cycle(self.conn, self.cycle.id)
+        if self.on_save:
+            self.on_save()
+        self.destroy()
