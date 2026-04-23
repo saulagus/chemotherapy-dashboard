@@ -6,7 +6,8 @@ import os
 # database.py and models.py using simple 'from database import ...' statements.
 sys.path.insert(0, os.path.dirname(__file__))
 
-from database import get_connection, create_tables
+from database import get_connection, DB_PATH
+from migrations import run_migrations
 from utils import show_error, apply_dark_theme, BG
 
 
@@ -99,8 +100,8 @@ class App(tk.Tk):
         # error message instead of a raw Python traceback.
         try:
             self.conn = get_connection()
-            # Create tables if they don't exist yet (safe on first run).
-            create_tables(self.conn)
+            # Apply any pending schema migrations. Backs up DB_PATH first.
+            run_migrations(self.conn, DB_PATH)
         except Exception as e:
             show_error("Database Error", f"Failed to initialize database:\n{e}")
             # destroy() closes the window and ends the application.

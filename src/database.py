@@ -22,76 +22,24 @@ def get_connection(db_path=None):
     # Returns a sqlite3.Connection — all queries and inserts go through this object.
 
 
-def create_tables(conn=None):
-    """Create all required tables if they do not already exist.
+def create_tables(conn=None, db_path=None):
+    """Apply all pending schema migrations.
 
-    Accepts an open connection so tests can pass an in-memory connection directly.
-    If no connection is provided, one is opened and closed internally.
-    Safe to call multiple times — IF NOT EXISTS prevents overwriting existing data.
+    Kept for backward-compatibility with v1.0 callers and tests. New code
+    should call migrations.run_migrations() directly.
     """
+    from migrations import run_migrations
+
     close_after = conn is None
     if conn is None:
         conn = get_connection()
 
-    cursor = conn.cursor()  # cursor is the object used to run SQL commands.
+    run_migrations(conn, db_path)
 
-    # One row per patient enrolled in AC-T treatment.
-    # patient_id is the human-readable ID (e.g. 'PT-001'), not the numeric PK.
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS patients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            age INTEGER,
-            diagnosis_date DATE,
-            start_date DATE,
-            protocol TEXT,
-            total_cycles INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # One row per treatment cycle per patient.
-    # patient_id references patients.id (the INTEGER PK), not the text 'PT-001'.
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cycles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id INTEGER NOT NULL,
-            cycle_number INTEGER NOT NULL,
-            phase TEXT,
-            planned_date DATE,
-            actual_date DATE,
-            status TEXT,
-            dose_percent REAL,
-            dose_reason TEXT,
-            notes TEXT,
-            FOREIGN KEY (patient_id) REFERENCES patients (id)
-        )
-    ''')
-
-    # One row per lab draw per patient.
-    # ANC is the most critical value — it determines if the next cycle can proceed.
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS labs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id INTEGER NOT NULL,
-            lab_date DATE NOT NULL,
-            anc REAL,
-            wbc REAL,
-            platelets REAL,
-            hemoglobin REAL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (patient_id) REFERENCES patients (id)
-        )
-    ''')
-
-    conn.commit()  # Saves all changes to disk.
     if close_after:
         conn.close()
-    # Returns nothing. Tables now exist and are ready to use.
 
 
 if __name__ == "__main__":
-    # Running this file directly initializes the database on disk.
-    create_tables()
-    print("Database and tables initialized successfully.")
+    create_tables(db_path=DB_PATH)
+    print("Database migrated successfully.")
