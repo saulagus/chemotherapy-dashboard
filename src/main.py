@@ -6,6 +6,7 @@ import os
 # database.py and models.py using simple 'from database import ...' statements.
 sys.path.insert(0, os.path.dirname(__file__))
 
+import config
 from database import get_connection, DB_PATH
 from migrations import run_migrations
 from utils import show_error, apply_dark_theme, BG
@@ -28,6 +29,7 @@ class App(tk.Tk):
         super().__init__()
         self.conn = None    # Database connection — set in _init_database().
         self.frames = {}    # Stores instantiated views keyed by their class.
+        config.load()
         self._setup_window()
         self._init_database()
         self._init_navigation()

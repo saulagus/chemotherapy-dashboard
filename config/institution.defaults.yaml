@@ -1,0 +1,21 @@
+# Default institutional configuration.
+# DO NOT EDIT — copy to institution.yaml and override there.
+# Values here reflect published-guideline defaults; institution.yaml is merged
+# on top and wins on any overlapping key.
+
+institution:
+  name: "Default Institution"
+
+patient:
+  # Regex every patient_id must match. Default: 'PT-' followed by 3+ digits.
+  id_regex: '^PT-\d{3,}$'
+
+cycles:
+  # Which dose-density options appear in the patient-edit dropdown.
+  dose_density_options:
+    - standard_q3w
+    - dose_dense_q2w
+
+backup:
+  # Reminder cadence for the backup/restore story in Sprint 10.
+  reminder_interval_days: 7

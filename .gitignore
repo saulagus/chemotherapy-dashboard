@@ -34,3 +34,9 @@ Thumbs.db
 # Data directory (keep structure, ignore content)
 data/*
 !data/.gitkeep
+
+# Per-institution config overrides (defaults + example are committed)
+config/institution.yaml
+
+# Migration backups
+*.pre-migrate-*

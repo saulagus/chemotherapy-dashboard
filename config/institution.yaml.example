@@ -1,0 +1,11 @@
+# Per-institution overrides. Copy this file to institution.yaml and edit.
+# Only include keys you want to override — everything else inherits from
+# institution.defaults.yaml.
+#
+# Example:
+#
+# institution:
+#   name: "Memorial Oncology"
+#
+# backup:
+#   reminder_interval_days: 3
