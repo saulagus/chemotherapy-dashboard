@@ -1,82 +1,88 @@
 import tkinter as tk
+from datetime import date
 from tkinter import ttk
+
+import config
+from models import Patient
+from services.patients import update_patient
 from utils import BG, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
 
 
-class AddPatientDialog(tk.Toplevel):
-    """Modal dialog for adding a new patient.
+class EditPatientDialog(tk.Toplevel):
+    """Modal dialog for editing an existing patient.
 
-    Opens as a separate window on top of the main app.
-    Blocks interaction with the main window until closed.
+    Mirrors AddPatientDialog layout. Adds a dose-density field and routes the
+    save through services.patients.update_patient so an audit row is written.
     """
 
     PROTOCOLS = ['Dose-Dense AC-T', 'Standard AC-T']
+    DOSE_DENSITY_LABELS = {
+        'standard_q3w': 'Standard (q3w)',
+        'dose_dense_q2w': 'Dose-Dense (q2w)',
+    }
 
-    def __init__(self, parent, app):
+    def __init__(self, parent, app, patient: Patient):
         super().__init__(parent)
         self.app = app
-        self.result = None      # Set to the new Patient after a successful save.
+        self.patient = patient
+        self.result = None
+        self._dose_density_options = config.get().cycles.dose_density_options
         self._build_ui()
+        self._populate_from_patient()
         self._make_modal(parent)
 
     def _make_modal(self, parent):
-        self.title("Add Patient")
+        self.title("Edit Patient")
         self.resizable(False, False)
         self.configure(bg=BG)
 
-        # Center over the parent window.
         self.update_idletasks()
         pw = parent.winfo_rootx()
         py = parent.winfo_rooty()
-        w, h = 420, 420
-        x = pw + (parent.winfo_width()  - w) // 2
+        w, h = 420, 460
+        x = pw + (parent.winfo_width() - w) // 2
         y = py + (parent.winfo_height() - h) // 2
         self.geometry(f"{w}x{h}+{x}+{y}")
 
-        # Block the parent window until this dialog is closed.
         self.transient(parent)
         self.grab_set()
         self.focus_set()
 
     def _build_ui(self):
-        # ── Title bar ──────────────────────────────────────────────────────────
         header = tk.Frame(self, bg=BG, padx=20, pady=16)
         header.pack(fill='x')
-        tk.Label(header, text="Add Patient", font=('Arial', FONT_HEADER, 'bold'),
+        tk.Label(header, text="Edit Patient", font=('Arial', FONT_HEADER, 'bold'),
                  bg=BG, fg=FG).pack(side='left')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
-        # ── Form fields ────────────────────────────────────────────────────────
         form = tk.Frame(self, bg=BG, padx=20, pady=16)
         form.pack(fill='both', expand=True)
-
-        # Column weights: label column fixed, input column stretches.
         form.columnconfigure(1, weight=1)
 
         self._fields = {}
+        dose_density_values = [self.DOSE_DENSITY_LABELS.get(o, o)
+                               for o in self._dose_density_options]
         rows = [
             ('patient_id',      'Patient ID *',         'entry',    None),
             ('name',            'Name / Initials *',    'entry',    None),
             ('start_date',      'AC-T Start Date *',    'entry',    'YYYY-MM-DD'),
             ('protocol',        'Protocol *',           'combo',    self.PROTOCOLS),
+            ('dose_density',    'Dose Density',         'combo',    dose_density_values),
             ('age',             'Age at Diagnosis',     'entry',    None),
             ('diagnosis_date',  'Diagnosis Date',       'entry',    'YYYY-MM-DD'),
         ]
 
         for row_idx, (key, label, widget_type, extra) in enumerate(rows):
-            # Label.
             tk.Label(form, text=label, font=('Arial', FONT_BODY),
                      bg=BG, fg=FG, anchor='w').grid(
                 row=row_idx, column=0, sticky='w', pady=6, padx=(0, 16))
 
-            # Input widget.
             if widget_type == 'combo':
                 var = tk.StringVar()
                 widget = ttk.Combobox(form, textvariable=var,
                                       values=extra, state='readonly',
                                       font=('Arial', FONT_BODY))
-                widget.current(0)
                 self._fields[key] = var
             else:
                 var = tk.StringVar()
@@ -85,34 +91,40 @@ class AddPatientDialog(tk.Toplevel):
                                   bg='#2e2e2e', fg=FG,
                                   insertbackground=FG,
                                   relief='flat', bd=4)
-                if extra:   # placeholder hint
-                    widget.insert(0, extra)
-                    widget.config(fg=FG_MUTED)
+                self._fields[key] = var
+                if extra:
                     widget.bind('<FocusIn>',  lambda e, w=widget, h=extra: self._clear_hint(w, h))
                     widget.bind('<FocusOut>', lambda e, w=widget, h=extra: self._restore_hint(w, h))
-                self._fields[key] = var
 
             widget.grid(row=row_idx, column=1, sticky='ew', pady=6)
 
-        # ── Inline error label ─────────────────────────────────────────────────
         self._error_label = tk.Label(form, text='', font=('Arial', FONT_HINT),
                                      bg=BG, fg='#e05555',
                                      justify='left', wraplength=360, anchor='w')
         self._error_label.grid(row=len(rows), column=0, columnspan=2,
                                sticky='w', pady=(8, 0))
 
-        # ── Buttons ────────────────────────────────────────────────────────────
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
-
         btn_row = tk.Frame(self, bg=BG, padx=20, pady=12)
         btn_row.pack(fill='x')
-
         tk.Button(btn_row, text="Cancel",
                   command=self._on_cancel).pack(side='right', padx=(8, 0))
-        tk.Button(btn_row, text="Save Patient",
+        tk.Button(btn_row, text="Save Changes",
                   command=self._on_save).pack(side='right')
 
-    # ── Hint helpers ──────────────────────────────────────────────────────────
+    def _populate_from_patient(self):
+        p = self.patient
+        self._fields['patient_id'].set(p.patient_id or '')
+        self._fields['name'].set(p.name or '')
+        self._fields['start_date'].set(p.start_date.isoformat() if p.start_date else '')
+        self._fields['protocol'].set(p.protocol or self.PROTOCOLS[0])
+        self._fields['dose_density'].set(
+            self.DOSE_DENSITY_LABELS.get(p.dose_density, '')
+        )
+        self._fields['age'].set(str(p.age) if p.age is not None else '')
+        self._fields['diagnosis_date'].set(
+            p.diagnosis_date.isoformat() if p.diagnosis_date else ''
+        )
 
     def _clear_hint(self, widget, hint):
         if widget.get() == hint:
@@ -130,26 +142,28 @@ class AddPatientDialog(tk.Toplevel):
     def _clear_error(self):
         self._error_label.config(text='')
 
-    # ── Validation ────────────────────────────────────────────────────────────
-
     def _get(self, key, hint=None):
-        """Return stripped field value, treating the placeholder hint as empty."""
         val = self._fields[key].get().strip()
         return '' if val == hint else val
 
+    def _resolve_dose_density(self) -> str:
+        label = self._fields['dose_density'].get().strip()
+        if not label:
+            return None
+        for option, pretty in self.DOSE_DENSITY_LABELS.items():
+            if pretty == label:
+                return option
+        return None
+
     def validate_inputs(self):
-        """Check all fields and return a list of error strings (empty = valid)."""
-        from datetime import date
         errors = []
-
         patient_id = self._get('patient_id')
-        name       = self._get('name')
+        name = self._get('name')
         start_date = self._get('start_date', 'YYYY-MM-DD')
-        protocol   = self._get('protocol')
-        age        = self._get('age')
-        diag_date  = self._get('diagnosis_date', 'YYYY-MM-DD')
+        protocol = self._get('protocol')
+        age = self._get('age')
+        diag_date = self._get('diagnosis_date', 'YYYY-MM-DD')
 
-        # Required fields.
         if not patient_id:
             errors.append("Patient ID is required.")
         elif not (3 <= len(patient_id) <= 20 and patient_id.replace('-', '').isalnum()):
@@ -171,10 +185,8 @@ class AddPatientDialog(tk.Toplevel):
         if not protocol:
             errors.append("Protocol is required.")
 
-        # Optional fields — validate only if provided.
-        if age:
-            if not age.isdigit() or not (0 < int(age) < 120):
-                errors.append("Age must be a number between 1 and 119.")
+        if age and (not age.isdigit() or not (0 < int(age) < 120)):
+            errors.append("Age must be a number between 1 and 119.")
 
         if diag_date:
             try:
@@ -186,13 +198,7 @@ class AddPatientDialog(tk.Toplevel):
 
         return errors
 
-    # ── Handlers ──────────────────────────────────────────────────────────────
-
     def _on_save(self):
-        from datetime import date
-        from models import Patient
-        from services.patients import create_patient
-
         self._clear_error()
         errors = self.validate_inputs()
         if errors:
@@ -200,22 +206,26 @@ class AddPatientDialog(tk.Toplevel):
             return
 
         patient_id = self._get('patient_id')
-        name       = self._get('name')
+        name = self._get('name')
         start_date = self._get('start_date', 'YYYY-MM-DD')
-        protocol   = self._get('protocol')
-        age        = self._get('age')
-        diag_date  = self._get('diagnosis_date', 'YYYY-MM-DD')
+        protocol = self._get('protocol')
+        age = self._get('age')
+        diag_date = self._get('diagnosis_date', 'YYYY-MM-DD')
+
+        updated = Patient(
+            id=self.patient.id,
+            patient_id=patient_id,
+            name=name,
+            start_date=date.fromisoformat(start_date),
+            protocol=protocol,
+            age=int(age) if age else None,
+            diagnosis_date=date.fromisoformat(diag_date) if diag_date else None,
+            total_cycles=self.patient.total_cycles or 8,
+            dose_density=self._resolve_dose_density(),
+        )
 
         try:
-            new_patient = create_patient(self.app.conn, Patient(
-                patient_id  = patient_id,
-                name        = name,
-                start_date  = date.fromisoformat(start_date),
-                protocol    = protocol,
-                age         = int(age) if age else None,
-                diagnosis_date = date.fromisoformat(diag_date) if diag_date else None,
-                total_cycles = 8,
-            ))
+            update_patient(self.app.conn, updated)
         except Exception as e:
             if 'UNIQUE' in str(e):
                 self._show_error(f"• Patient ID '{patient_id}' already exists.")
@@ -223,7 +233,7 @@ class AddPatientDialog(tk.Toplevel):
                 self._show_error(f"• Save failed: {e}")
             return
 
-        self.result = new_patient
+        self.result = updated
         self.destroy()
 
     def _on_cancel(self):

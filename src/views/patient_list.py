@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from models import Patient, get_cycles_by_patient, delete_patient
+from models import Patient, get_cycles_by_patient, get_patient_by_db_id
+from services.patients import soft_delete_patient
 from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED, FONT_BODY, FONT_TITLE
 
 
@@ -28,6 +29,12 @@ class PatientListView(tk.Frame):
                            cursor='hand2', padx=8, pady=4)
         add_btn.pack(side='right')
         add_btn.bind('<Button-1>', lambda e: self._on_add_patient())
+
+        edit_btn = tk.Label(header, text="Edit Patient",
+                            font=('Arial', FONT_BODY), bg=BG, fg=FG,
+                            cursor='hand2', padx=8, pady=4)
+        edit_btn.pack(side='right')
+        edit_btn.bind('<Button-1>', lambda e: self._on_edit_patient())
 
         remove_btn = tk.Label(header, text="- Remove Patient",
                               font=('Arial', FONT_BODY), bg=BG, fg='#e05555',
@@ -186,7 +193,7 @@ class PatientListView(tk.Frame):
         self._open_patient(patient_id=patient_db_id)
 
     def _on_remove_patient(self):
-        """Delete the selected patient after confirmation."""
+        """Soft-delete the selected patient after confirmation."""
         selected = self.tree.selection()
         if not selected:
             return
@@ -195,16 +202,32 @@ class PatientListView(tk.Frame):
         name = self.tree.item(selected[0])['values'][1]
         confirmed = messagebox.askyesno(
             "Remove Patient",
-            f"Remove {name} ({patient_id_str})?\nThis cannot be undone.",
+            f"Remove {name} ({patient_id_str})?\n"
+            f"The record is hidden from the list but kept in the audit trail.",
         )
         if confirmed:
-            delete_patient(self.app.conn, patient_id_str)
+            soft_delete_patient(self.app.conn, patient_db_id)
             self.refresh()
 
     def _on_add_patient(self):
         """Open the Add Patient dialog and refresh the list if a patient was saved."""
         from views.add_patient_dialog import AddPatientDialog
         dialog = AddPatientDialog(self.winfo_toplevel(), self.app)
+        self.wait_window(dialog)
+        if dialog.result:
+            self.refresh()
+
+    def _on_edit_patient(self):
+        """Open the Edit Patient dialog for the selected patient."""
+        selected = self.tree.selection()
+        if not selected:
+            return
+        patient_db_id = int(self.tree.item(selected[0])['tags'][0])
+        patient = get_patient_by_db_id(self.app.conn, patient_db_id)
+        if patient is None:
+            return
+        from views.dialogs.edit_patient_dialog import EditPatientDialog
+        dialog = EditPatientDialog(self.winfo_toplevel(), self.app, patient)
         self.wait_window(dialog)
         if dialog.result:
             self.refresh()

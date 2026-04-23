@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional, List
-from datetime import date
+from datetime import date, datetime
 
 
 # ---------------------------------------------------------------------------
@@ -18,6 +18,8 @@ class Patient:
     start_date: Optional[date] = None     # Date AC-T treatment started.
     protocol: Optional[str] = None        # e.g. 'Dose-Dense AC-T' or 'Standard AC-T'
     total_cycles: Optional[int] = 8       # AC-T is always 8 cycles (4 AC + 4 T).
+    dose_density: Optional[str] = None    # 'standard_q3w' | 'dose_dense_q2w'
+    deleted_at: Optional[datetime] = None  # Non-null = soft-deleted.
     id: Optional[int] = None             # Auto-assigned by the database after insert.
 
     @classmethod
@@ -58,73 +60,74 @@ class Lab:
 # CRUD = Create, Read, Update, Delete — the four basic database operations.
 # All functions accept 'conn', an open database connection.
 
+_PATIENT_COLUMNS = (
+    'id, patient_id, name, age, diagnosis_date, start_date, '
+    'protocol, total_cycles, dose_density, deleted_at'
+)
+
+
+def _row_to_patient(row) -> Patient:
+    return Patient(
+        id=row[0], patient_id=row[1], name=row[2], age=row[3],
+        diagnosis_date=row[4], start_date=row[5],
+        protocol=row[6], total_cycles=row[7],
+        dose_density=row[8], deleted_at=row[9],
+    )
+
+
 def add_patient(conn, patient: Patient) -> Patient:
     """Insert a new patient and return it with its DB id set."""
     cursor = conn.cursor()
     cursor.execute(
         '''INSERT INTO patients
-           (patient_id, name, age, diagnosis_date, start_date, protocol, total_cycles)
-           VALUES (?, ?, ?, ?, ?, ?, ?)''',
-        # '?' placeholders prevent SQL injection — malicious input altering the query.
+           (patient_id, name, age, diagnosis_date, start_date, protocol,
+            total_cycles, dose_density)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
         (patient.patient_id, patient.name, patient.age,
          patient.diagnosis_date, patient.start_date,
-         patient.protocol, patient.total_cycles)
+         patient.protocol, patient.total_cycles, patient.dose_density)
     )
-    # conn.commit() writes immediately to disk — SQLite auto-save (US-020).
-    # No separate "Save" button is needed; data persists even if the app is force-quit.
     conn.commit()
-    patient.id = cursor.lastrowid  # Auto-generated integer ID assigned by the database.
+    patient.id = cursor.lastrowid
     return patient
 
 
-def get_all_patients(conn) -> List[Patient]:
-    """Return all patients ordered by name."""
+def get_all_patients(conn, include_deleted: bool = False) -> List[Patient]:
+    """Return all patients ordered by name. Excludes soft-deleted by default."""
     cursor = conn.cursor()
+    where = '' if include_deleted else 'WHERE deleted_at IS NULL'
     cursor.execute(
-        'SELECT id, patient_id, name, age, diagnosis_date, start_date, protocol, total_cycles '
-        'FROM patients ORDER BY name'
+        f'SELECT {_PATIENT_COLUMNS} FROM patients {where} ORDER BY name'
     )
-    # fetchall() returns a list of tuples; we convert each into a Patient object.
-    # Returns an empty list [] if no patients exist yet.
-    return [
-        Patient(id=row[0], patient_id=row[1], name=row[2], age=row[3],
-                diagnosis_date=row[4], start_date=row[5],
-                protocol=row[6], total_cycles=row[7])
-        for row in cursor.fetchall()
-    ]
+    return [_row_to_patient(row) for row in cursor.fetchall()]
 
 
-def get_patient_by_id(conn, patient_id: str) -> Optional[Patient]:
-    """Return a patient by their text patient_id (e.g. 'PT-001'), or None if not found."""
+def get_patient_by_id(
+    conn, patient_id: str, include_deleted: bool = False
+) -> Optional[Patient]:
+    """Return a patient by text patient_id, or None. Excludes soft-deleted by default."""
     cursor = conn.cursor()
+    extra = '' if include_deleted else ' AND deleted_at IS NULL'
     cursor.execute(
-        'SELECT id, patient_id, name, age, diagnosis_date, start_date, protocol, total_cycles '
-        'FROM patients WHERE patient_id = ?',
-        (patient_id,)  # Trailing comma required — Python needs a tuple, not a plain value.
+        f'SELECT {_PATIENT_COLUMNS} FROM patients WHERE patient_id = ?{extra}',
+        (patient_id,)
     )
-    row = cursor.fetchone()  # Returns one matching row, or None if not found.
-    if row is None:
-        return None  # No patient with that ID exists.
-    # Returns a Patient object with all fields populated.
-    return Patient(id=row[0], patient_id=row[1], name=row[2], age=row[3],
-                   diagnosis_date=row[4], start_date=row[5],
-                   protocol=row[6], total_cycles=row[7])
+    row = cursor.fetchone()
+    return _row_to_patient(row) if row else None
 
 
-def get_patient_by_db_id(conn, db_id: int) -> Optional[Patient]:
-    """Return a patient by their integer primary key, or None if not found."""
+def get_patient_by_db_id(
+    conn, db_id: int, include_deleted: bool = False
+) -> Optional[Patient]:
+    """Return a patient by integer PK, or None. Excludes soft-deleted by default."""
     cursor = conn.cursor()
+    extra = '' if include_deleted else ' AND deleted_at IS NULL'
     cursor.execute(
-        'SELECT id, patient_id, name, age, diagnosis_date, start_date, protocol, total_cycles '
-        'FROM patients WHERE id = ?',
+        f'SELECT {_PATIENT_COLUMNS} FROM patients WHERE id = ?{extra}',
         (db_id,)
     )
     row = cursor.fetchone()
-    if row is None:
-        return None
-    return Patient(id=row[0], patient_id=row[1], name=row[2], age=row[3],
-                   diagnosis_date=row[4], start_date=row[5],
-                   protocol=row[6], total_cycles=row[7])
+    return _row_to_patient(row) if row else None
 
 
 def update_patient(conn, patient: Patient) -> None:
@@ -133,23 +136,25 @@ def update_patient(conn, patient: Patient) -> None:
     cursor.execute(
         '''UPDATE patients
            SET patient_id=?, name=?, age=?, diagnosis_date=?, start_date=?,
-               protocol=?, total_cycles=?
+               protocol=?, total_cycles=?, dose_density=?
            WHERE id=?''',
-        # id is passed last to match the WHERE clause at the end of the query.
         (patient.patient_id, patient.name, patient.age,
          patient.diagnosis_date, patient.start_date,
-         patient.protocol, patient.total_cycles, patient.id)
+         patient.protocol, patient.total_cycles, patient.dose_density,
+         patient.id)
     )
     conn.commit()
-    # Returns nothing. The database row has been updated in place.
 
 
 def delete_patient(conn, patient_id: str) -> None:
-    """Delete a patient by their text patient_id (e.g. 'PT-001')."""
+    """Hard-delete a patient by text patient_id.
+
+    Low-level helper used by bulk test-data utilities. Application code should
+    soft-delete via services.patients.soft_delete_patient() instead.
+    """
     cursor = conn.cursor()
     cursor.execute('DELETE FROM patients WHERE patient_id = ?', (patient_id,))
     conn.commit()
-    # Returns nothing. The patient row is permanently removed from the database.
 
 
 # ---------------------------------------------------------------------------
