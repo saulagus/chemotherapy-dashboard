@@ -44,9 +44,10 @@ def test_run_migrations_on_empty_db_creates_tables():
 
 def test_run_migrations_is_idempotent():
     conn = get_connection(':memory:')
+    all_versions = [v for v, _ in discover_migrations()]
     first = run_migrations(conn)
     second = run_migrations(conn)
-    assert first == [1]
+    assert first == all_versions
     assert second == []
     conn.close()
 
@@ -55,7 +56,8 @@ def test_get_applied_versions_reflects_applied():
     conn = get_connection(':memory:')
     assert get_applied_versions(conn) == []
     run_migrations(conn)
-    assert get_applied_versions(conn) == [1]
+    all_versions = [v for v, _ in discover_migrations()]
+    assert get_applied_versions(conn) == all_versions
     conn.close()
 
 
@@ -76,10 +78,11 @@ def test_rollback_to_zero_drops_tables():
 
 def test_round_trip_up_down_up():
     conn = get_connection(':memory:')
+    all_versions = [v for v, _ in discover_migrations()]
     run_migrations(conn)
     rollback_to(conn, 0)
     applied = run_migrations(conn)
-    assert applied == [1]
+    assert applied == all_versions
     conn.close()
 
 
