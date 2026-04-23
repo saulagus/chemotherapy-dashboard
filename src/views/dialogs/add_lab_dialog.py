@@ -4,7 +4,8 @@ from tkinter import messagebox
 from datetime import date
 from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
                    FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER)
-from models import Lab, add_lab, get_patient_by_db_id
+from models import Lab, get_patient_by_db_id
+from services.labs import create_lab
 
 log = logging.getLogger(__name__)
 
@@ -316,7 +317,7 @@ class AddLabDialog(tk.Toplevel):
         data = self.get_form_data()
 
         try:
-            add_lab(self.conn, Lab(
+            create_lab(self.conn, Lab(
                 patient_id = self.patient_id,
                 lab_date   = date.fromisoformat(data['lab_date']),
                 anc        = float(data['anc']),

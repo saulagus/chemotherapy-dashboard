@@ -1,8 +1,11 @@
 import tkinter as tk
 from datetime import date
+from tkinter import messagebox
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
 from models import get_latest_lab
+from services.labs import delete_lab
 from utils.anc_utils import get_anc_status, ANC_THRESHOLD_MILD, ANC_THRESHOLD_MODERATE, ANC_THRESHOLD_SEVERE
+from views.dialogs.edit_lab_dialog import EditLabDialog
 
 
 class LatestLabsPanel(tk.Frame):
@@ -100,6 +103,26 @@ class LatestLabsPanel(tk.Frame):
                  font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
                  anchor='w').pack(side='left')
 
+        # Edit / Delete actions for the latest lab
+        del_btn = tk.Label(date_row, text='Delete',
+                           font=('Arial', FONT_HINT), bg=BG_ALT, fg='#F44336',
+                           cursor='hand2')
+        del_btn.pack(side='right')
+        del_btn.bind('<Button-1>', lambda e, l=lab: self._on_delete_lab(l))
+        del_btn.bind('<Enter>', lambda e: del_btn.config(fg='#E57373'))
+        del_btn.bind('<Leave>', lambda e: del_btn.config(fg='#F44336'))
+
+        tk.Label(date_row, text='  ·  ',
+                 font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED).pack(side='right')
+
+        edit_btn = tk.Label(date_row, text='Edit',
+                            font=('Arial', FONT_HINT), bg=BG_ALT, fg='#4CAF50',
+                            cursor='hand2')
+        edit_btn.pack(side='right')
+        edit_btn.bind('<Button-1>', lambda e, l=lab: self._on_edit_lab(l))
+        edit_btn.bind('<Enter>', lambda e: edit_btn.config(fg='#81C784'))
+        edit_btn.bind('<Leave>', lambda e: edit_btn.config(fg='#4CAF50'))
+
         # ── Value rows ────────────────────────────────────────────────────────
         rows = [
             ("ANC",        lab.anc,        "K/μL",  True),
@@ -163,6 +186,26 @@ class LatestLabsPanel(tk.Frame):
                      bg=BG_ALT, fg=color).pack(side='left')
             tk.Label(legend_row, text=f'{text}    ', font=('Arial', FONT_HINT),
                      bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+
+    # ── Actions ───────────────────────────────────────────────────────────────
+
+    def _on_edit_lab(self, lab):
+        EditLabDialog(self, self.conn, lab, on_save=self.refresh)
+
+    def _on_delete_lab(self, lab):
+        if not messagebox.askyesno(
+            'Delete Lab',
+            f'Delete lab from {lab.lab_date}?\n\nAn audit record will be kept.',
+            parent=self,
+        ):
+            return
+        try:
+            delete_lab(self.conn, lab.id)
+        except Exception as e:
+            messagebox.showerror('Delete Failed',
+                                 f'Could not delete lab:\n{e}', parent=self)
+            return
+        self.refresh()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
