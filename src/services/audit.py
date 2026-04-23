@@ -79,6 +79,40 @@ def write_audit(
     return cursor.lastrowid
 
 
+def get_audit_for_patient(conn, patient_db_id: int) -> List[dict]:
+    """Return all audit rows touching a patient, newest first.
+
+    Includes the patient row itself plus any cycles/labs belonging to that
+    patient (identified by patient_id embedded in the before/after JSON, so
+    rows for hard-deleted cycles/labs still surface).
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        '''SELECT id, ts, actor, entity, entity_id, action, before_json, after_json
+           FROM audit_log
+           WHERE (entity = 'patient' AND entity_id = ?)
+              OR (entity IN ('cycle', 'lab')
+                  AND CAST(
+                        json_extract(COALESCE(after_json, before_json), '$.patient_id')
+                      AS INTEGER) = ?)
+           ORDER BY ts DESC, id DESC''',
+        (patient_db_id, patient_db_id),
+    )
+    return [
+        {
+            'id': row[0],
+            'ts': row[1],
+            'actor': row[2],
+            'entity': row[3],
+            'entity_id': row[4],
+            'action': row[5],
+            'before': json.loads(row[6]) if row[6] else None,
+            'after': json.loads(row[7]) if row[7] else None,
+        }
+        for row in cursor.fetchall()
+    ]
+
+
 def get_audit_for_entity(
     conn, entity: str, entity_id: int
 ) -> List[dict]:

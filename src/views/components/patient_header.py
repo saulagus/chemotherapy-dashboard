@@ -15,10 +15,12 @@ class PatientHeader(tk.Frame):
     update_display(patient) — refresh all labels from a Patient object or None
     """
 
-    def __init__(self, parent, controller, on_add_labs=None, **kwargs):
+    def __init__(self, parent, controller, on_add_labs=None,
+                 on_show_history=None, **kwargs):
         super().__init__(parent, bg=BG_ALT, **kwargs)
-        self.controller   = controller
-        self.on_add_labs  = on_add_labs
+        self.controller       = controller
+        self.on_add_labs      = on_add_labs
+        self.on_show_history  = on_show_history
         self._build_ui()
 
     def _build_ui(self):
@@ -42,6 +44,15 @@ class PatientHeader(tk.Frame):
             add_btn.bind('<Button-1>', lambda e: self.on_add_labs())
             add_btn.bind('<Enter>', lambda e: add_btn.config(fg=FG))
             add_btn.bind('<Leave>', lambda e: add_btn.config(fg=FG_MUTED))
+
+        if self.on_show_history is not None:
+            hist_btn = tk.Label(action_row, text="History",
+                                font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
+                                cursor='hand2', padx=12)
+            hist_btn.pack(side='right')
+            hist_btn.bind('<Button-1>', lambda e: self.on_show_history())
+            hist_btn.bind('<Enter>', lambda e: hist_btn.config(fg=FG))
+            hist_btn.bind('<Leave>', lambda e: hist_btn.config(fg=FG_MUTED))
 
         # ── Name + detail block ───────────────────────────────────────────────
         info_frame = tk.Frame(self, bg=BG_ALT, padx=20)

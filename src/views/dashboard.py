@@ -22,7 +22,9 @@ class DashboardView(tk.Frame):
         self.configure(bg=BG)
 
         # ── Patient header ─────────────────────────────────────────────────────
-        self.header = PatientHeader(self, self.app, on_add_labs=self._on_add_labs)
+        self.header = PatientHeader(self, self.app,
+                                    on_add_labs=self._on_add_labs,
+                                    on_show_history=self._on_show_history)
         self.header.pack(fill='x')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -80,6 +82,12 @@ class DashboardView(tk.Frame):
         from views.dialogs.add_lab_dialog import AddLabDialog
         AddLabDialog(self.winfo_toplevel(), self.app.conn, self.patient_id,
                      on_save=self._refresh_labs)
+
+    def _on_show_history(self):
+        if self.patient is None:
+            return
+        from views.dialogs.audit_viewer_dialog import AuditViewerDialog
+        AuditViewerDialog(self.winfo_toplevel(), self.app.conn, self.patient)
 
     def _refresh_labs(self):
         self.labs_panel.refresh()
