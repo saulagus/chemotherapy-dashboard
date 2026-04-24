@@ -19,3 +19,32 @@ cycles:
 backup:
   # Reminder cadence for the backup/restore story in Sprint 10.
   reminder_interval_days: 7
+
+cardiotoxicity:
+  bsa_formula: mosteller           # mosteller | dubois
+  weight_change_warning_pct: 10
+
+  cumulative_thresholds_mg_per_m2:
+    yellow: 300
+    red: 400
+    hard_stop: 450
+
+  equivalence_factors:             # relative to doxorubicin (1.0)
+    doxorubicin: 1.0
+    epirubicin: 0.5
+    daunorubicin: 0.5
+    idarubicin: 5.0
+    mitoxantrone: 4.0
+
+  lvef:
+    absolute_hold_pct: 50
+    delta_hold_pct: 10
+    delta_hold_absolute_ceiling_pct: 55
+    review_flag_delta_pct: 16
+
+  blocking_modes:
+    cumulative_yellow: advisory
+    cumulative_red: soft_block
+    cumulative_hard_stop: hard_block
+    lvef_absolute: soft_block
+    lvef_delta: soft_block
