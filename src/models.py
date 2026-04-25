@@ -39,6 +39,13 @@ class Cycle:
     dose_percent: Optional[float] = 100.0  # 100.0 = full dose. Lower if reduced.
     dose_reason: Optional[str] = None      # Reason for dose reduction, if any.
     notes: Optional[str] = None
+    # Sprint 6 — cardiotoxicity fields (migration 0004)
+    height_cm: Optional[float] = None          # Patient height at time of cycle.
+    weight_kg: Optional[float] = None          # Patient weight at time of cycle.
+    bsa_m2: Optional[float] = None             # Computed from height/weight at save.
+    anthracycline_agent: Optional[str] = None  # 'doxorubicin' | 'epirubicin' | ...
+    dose_mg_total: Optional[float] = None      # Total mg dispensed.
+    dose_mg_per_m2: Optional[float] = None     # Computed: total / bsa.
     id: Optional[int] = None             # Auto-assigned by the database after insert.
 
 
@@ -167,11 +174,15 @@ def add_cycle(conn, cycle: Cycle) -> Cycle:
     cursor.execute(
         '''INSERT INTO cycles
            (patient_id, cycle_number, phase, planned_date, actual_date,
-            status, dose_percent, dose_reason, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            status, dose_percent, dose_reason, notes,
+            height_cm, weight_kg, bsa_m2, anthracycline_agent,
+            dose_mg_total, dose_mg_per_m2)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         (cycle.patient_id, cycle.cycle_number, cycle.phase,
          cycle.planned_date, cycle.actual_date, cycle.status,
-         cycle.dose_percent, cycle.dose_reason, cycle.notes)
+         cycle.dose_percent, cycle.dose_reason, cycle.notes,
+         cycle.height_cm, cycle.weight_kg, cycle.bsa_m2,
+         cycle.anthracycline_agent, cycle.dose_mg_total, cycle.dose_mg_per_m2)
     )
     conn.commit()
     cycle.id = cursor.lastrowid
@@ -188,7 +199,9 @@ def get_cycles_by_patient(conn, patient_db_id: int) -> List[Cycle]:
     cursor = conn.cursor()
     cursor.execute(
         '''SELECT id, patient_id, cycle_number, phase, planned_date, actual_date,
-                  status, dose_percent, dose_reason, notes
+                  status, dose_percent, dose_reason, notes,
+                  height_cm, weight_kg, bsa_m2, anthracycline_agent,
+                  dose_mg_total, dose_mg_per_m2
            FROM cycles WHERE patient_id = ? ORDER BY cycle_number''',
         (patient_db_id,)
     )
@@ -197,7 +210,10 @@ def get_cycles_by_patient(conn, patient_db_id: int) -> List[Cycle]:
     return [
         Cycle(id=row[0], patient_id=row[1], cycle_number=row[2], phase=row[3],
               planned_date=row[4], actual_date=row[5], status=row[6],
-              dose_percent=row[7], dose_reason=row[8], notes=row[9])
+              dose_percent=row[7], dose_reason=row[8], notes=row[9],
+              height_cm=row[10], weight_kg=row[11], bsa_m2=row[12],
+              anthracycline_agent=row[13], dose_mg_total=row[14],
+              dose_mg_per_m2=row[15])
         for row in cursor.fetchall()
     ]
 
@@ -208,11 +224,16 @@ def update_cycle(conn, cycle: Cycle) -> None:
     cursor.execute(
         '''UPDATE cycles
            SET cycle_number=?, phase=?, planned_date=?, actual_date=?,
-               status=?, dose_percent=?, dose_reason=?, notes=?
+               status=?, dose_percent=?, dose_reason=?, notes=?,
+               height_cm=?, weight_kg=?, bsa_m2=?,
+               anthracycline_agent=?, dose_mg_total=?, dose_mg_per_m2=?
            WHERE id=?''',
         (cycle.cycle_number, cycle.phase, cycle.planned_date,
          cycle.actual_date, cycle.status, cycle.dose_percent,
-         cycle.dose_reason, cycle.notes, cycle.id)
+         cycle.dose_reason, cycle.notes,
+         cycle.height_cm, cycle.weight_kg, cycle.bsa_m2,
+         cycle.anthracycline_agent, cycle.dose_mg_total, cycle.dose_mg_per_m2,
+         cycle.id)
     )
     conn.commit()
     # Returns nothing. The cycle row has been updated in place.

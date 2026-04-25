@@ -3,6 +3,7 @@
 No database access, no Tkinter imports. Takes primitives in, returns primitives out.
 """
 
+import math
 from typing import Dict, Literal, Optional
 
 
@@ -12,8 +13,22 @@ LvefStatus = Literal["ok", "review", "hold"]
 
 
 def compute_bsa(height_cm: float, weight_kg: float, formula: BsaFormula = "mosteller") -> float:
-    """Return body surface area in m²."""
-    raise NotImplementedError
+    """Return body surface area in m².
+
+    Mosteller:  BSA = sqrt(height_cm * weight_kg / 3600)
+    DuBois:     BSA = 0.007184 * height_cm^0.725 * weight_kg^0.425
+
+    Raises ValueError for non-positive height or weight.
+    """
+    if height_cm <= 0:
+        raise ValueError(f"height_cm must be > 0, got {height_cm}")
+    if weight_kg <= 0:
+        raise ValueError(f"weight_kg must be > 0, got {weight_kg}")
+    if formula == "mosteller":
+        return math.sqrt(height_cm * weight_kg / 3600.0)
+    if formula == "dubois":
+        return 0.007184 * (height_cm ** 0.725) * (weight_kg ** 0.425)
+    raise ValueError(f"Unknown BSA formula: {formula!r}")
 
 
 def to_doxorubicin_equivalent(
