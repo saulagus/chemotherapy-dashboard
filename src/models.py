@@ -20,6 +20,9 @@ class Patient:
     total_cycles: Optional[int] = 8       # AC-T is always 8 cycles (4 AC + 4 T).
     dose_density: Optional[str] = None    # 'standard_q3w' | 'dose_dense_q2w'
     deleted_at: Optional[datetime] = None  # Non-null = soft-deleted.
+    # Sprint 6 — prior anthracycline exposure (migration 0006)
+    prior_anthracycline_dose_mg_per_m2: Optional[float] = 0.0
+    prior_anthracycline_agent: Optional[str] = None
     id: Optional[int] = None             # Auto-assigned by the database after insert.
 
     @classmethod
@@ -69,7 +72,8 @@ class Lab:
 
 _PATIENT_COLUMNS = (
     'id, patient_id, name, age, diagnosis_date, start_date, '
-    'protocol, total_cycles, dose_density, deleted_at'
+    'protocol, total_cycles, dose_density, deleted_at, '
+    'prior_anthracycline_dose_mg_per_m2, prior_anthracycline_agent'
 )
 
 
@@ -79,6 +83,8 @@ def _row_to_patient(row) -> Patient:
         diagnosis_date=row[4], start_date=row[5],
         protocol=row[6], total_cycles=row[7],
         dose_density=row[8], deleted_at=row[9],
+        prior_anthracycline_dose_mg_per_m2=row[10],
+        prior_anthracycline_agent=row[11],
     )
 
 
@@ -88,11 +94,14 @@ def add_patient(conn, patient: Patient) -> Patient:
     cursor.execute(
         '''INSERT INTO patients
            (patient_id, name, age, diagnosis_date, start_date, protocol,
-            total_cycles, dose_density)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            total_cycles, dose_density,
+            prior_anthracycline_dose_mg_per_m2, prior_anthracycline_agent)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         (patient.patient_id, patient.name, patient.age,
          patient.diagnosis_date, patient.start_date,
-         patient.protocol, patient.total_cycles, patient.dose_density)
+         patient.protocol, patient.total_cycles, patient.dose_density,
+         patient.prior_anthracycline_dose_mg_per_m2,
+         patient.prior_anthracycline_agent)
     )
     conn.commit()
     patient.id = cursor.lastrowid
@@ -143,12 +152,14 @@ def update_patient(conn, patient: Patient) -> None:
     cursor.execute(
         '''UPDATE patients
            SET patient_id=?, name=?, age=?, diagnosis_date=?, start_date=?,
-               protocol=?, total_cycles=?, dose_density=?
+               protocol=?, total_cycles=?, dose_density=?,
+               prior_anthracycline_dose_mg_per_m2=?, prior_anthracycline_agent=?
            WHERE id=?''',
         (patient.patient_id, patient.name, patient.age,
          patient.diagnosis_date, patient.start_date,
          patient.protocol, patient.total_cycles, patient.dose_density,
-         patient.id)
+         patient.prior_anthracycline_dose_mg_per_m2,
+         patient.prior_anthracycline_agent, patient.id)
     )
     conn.commit()
 

@@ -7,6 +7,9 @@ from models import Patient
 from services.patients import update_patient
 from utils import BG, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
 
+# Agents available for prior anthracycline exposure entry
+_PRIOR_AGENTS = ['', 'doxorubicin', 'epirubicin', 'daunorubicin', 'idarubicin', 'mitoxantrone']
+
 
 class EditPatientDialog(tk.Toplevel):
     """Modal dialog for editing an existing patient.
@@ -39,7 +42,7 @@ class EditPatientDialog(tk.Toplevel):
         self.update_idletasks()
         pw = parent.winfo_rootx()
         py = parent.winfo_rooty()
-        w, h = 420, 460
+        w, h = 420, 580
         x = pw + (parent.winfo_width() - w) // 2
         y = py + (parent.winfo_height() - h) // 2
         self.geometry(f"{w}x{h}+{x}+{y}")
@@ -72,6 +75,10 @@ class EditPatientDialog(tk.Toplevel):
             ('age',             'Age at Diagnosis',     'entry',    None),
             ('diagnosis_date',  'Diagnosis Date',       'entry',    'YYYY-MM-DD'),
         ]
+        prior_rows = [
+            ('prior_anthracycline_dose', 'Prior Anthracycline\nDose (mg/m²)', 'entry', None),
+            ('prior_anthracycline_agent', 'Prior Agent',        'combo', _PRIOR_AGENTS),
+        ]
 
         for row_idx, (key, label, widget_type, extra) in enumerate(rows):
             tk.Label(form, text=label, font=('Arial', FONT_BODY),
@@ -98,10 +105,39 @@ class EditPatientDialog(tk.Toplevel):
 
             widget.grid(row=row_idx, column=1, sticky='ew', pady=6)
 
+        # ── Prior Anthracycline History ──────────────────────────────────────
+        sep_row = len(rows)
+        tk.Frame(form, bg=SEPARATOR, height=1).grid(
+            row=sep_row, column=0, columnspan=2, sticky='ew', pady=(8, 6))
+        tk.Label(form, text="Prior Anthracycline History (optional)",
+                 font=('Arial', FONT_HINT), bg=BG, fg=FG_MUTED, anchor='w',
+                 ).grid(row=sep_row + 1, column=0, columnspan=2, sticky='w', pady=(0, 4))
+
+        for pr_idx, (key, label, widget_type, extra) in enumerate(prior_rows):
+            row_idx = sep_row + 2 + pr_idx
+            tk.Label(form, text=label, font=('Arial', FONT_BODY),
+                     bg=BG, fg=FG, anchor='w').grid(
+                row=row_idx, column=0, sticky='w', pady=6, padx=(0, 16))
+            if widget_type == 'combo':
+                var = tk.StringVar()
+                widget = ttk.Combobox(form, textvariable=var,
+                                      values=extra, state='readonly',
+                                      font=('Arial', FONT_BODY))
+            else:
+                var = tk.StringVar()
+                widget = tk.Entry(form, textvariable=var,
+                                  font=('Arial', FONT_BODY),
+                                  bg='#2e2e2e', fg=FG,
+                                  insertbackground=FG,
+                                  relief='flat', bd=4)
+            self._fields[key] = var
+            widget.grid(row=row_idx, column=1, sticky='ew', pady=6)
+
+        total_rows = sep_row + 2 + len(prior_rows)
         self._error_label = tk.Label(form, text='', font=('Arial', FONT_HINT),
                                      bg=BG, fg='#e05555',
                                      justify='left', wraplength=360, anchor='w')
-        self._error_label.grid(row=len(rows), column=0, columnspan=2,
+        self._error_label.grid(row=total_rows, column=0, columnspan=2,
                                sticky='w', pady=(8, 0))
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
@@ -124,6 +160,13 @@ class EditPatientDialog(tk.Toplevel):
         self._fields['age'].set(str(p.age) if p.age is not None else '')
         self._fields['diagnosis_date'].set(
             p.diagnosis_date.isoformat() if p.diagnosis_date else ''
+        )
+        prior_dose = p.prior_anthracycline_dose_mg_per_m2
+        self._fields['prior_anthracycline_dose'].set(
+            str(prior_dose) if prior_dose else ''
+        )
+        self._fields['prior_anthracycline_agent'].set(
+            p.prior_anthracycline_agent or ''
         )
 
     def _clear_hint(self, widget, hint):
@@ -188,6 +231,15 @@ class EditPatientDialog(tk.Toplevel):
         if age and (not age.isdigit() or not (0 < int(age) < 120)):
             errors.append("Age must be a number between 1 and 119.")
 
+        prior_dose_raw = self._get('prior_anthracycline_dose')
+        if prior_dose_raw:
+            try:
+                pd = float(prior_dose_raw)
+                if pd < 0:
+                    errors.append("Prior anthracycline dose cannot be negative.")
+            except ValueError:
+                errors.append("Prior anthracycline dose must be a number (mg/m²).")
+
         if diag_date:
             try:
                 dd = date.fromisoformat(diag_date)
@@ -212,6 +264,9 @@ class EditPatientDialog(tk.Toplevel):
         age = self._get('age')
         diag_date = self._get('diagnosis_date', 'YYYY-MM-DD')
 
+        prior_dose_raw = self._get('prior_anthracycline_dose')
+        prior_agent    = self._get('prior_anthracycline_agent') or None
+
         updated = Patient(
             id=self.patient.id,
             patient_id=patient_id,
@@ -222,6 +277,8 @@ class EditPatientDialog(tk.Toplevel):
             diagnosis_date=date.fromisoformat(diag_date) if diag_date else None,
             total_cycles=self.patient.total_cycles or 8,
             dose_density=self._resolve_dose_density(),
+            prior_anthracycline_dose_mg_per_m2=float(prior_dose_raw) if prior_dose_raw else 0.0,
+            prior_anthracycline_agent=prior_agent,
         )
 
         try:

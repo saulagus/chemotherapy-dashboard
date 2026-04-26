@@ -36,8 +36,16 @@ def to_doxorubicin_equivalent(
     dose_mg_per_m2: float,
     factors: Dict[str, float],
 ) -> float:
-    """Return the doxorubicin-equivalent dose for a single cycle."""
-    raise NotImplementedError
+    """Return the doxorubicin-equivalent dose for a single cycle.
+
+    Agent lookup is case-insensitive. Raises ValueError for unknown agents.
+    """
+    key = agent.lower()
+    if key not in factors:
+        raise ValueError(
+            f"Unknown agent {agent!r}. Known agents: {sorted(factors.keys())}"
+        )
+    return dose_mg_per_m2 * factors[key]
 
 
 def cumulative_doxorubicin_equivalent(
@@ -45,8 +53,21 @@ def cumulative_doxorubicin_equivalent(
     factors: Dict[str, float],
     prior_exposure_mg_per_m2: float = 0.0,
 ) -> float:
-    """Sum doxorubicin-equivalent dose across all non-deleted cycles plus prior exposure."""
-    raise NotImplementedError
+    """Sum doxorubicin-equivalent dose across all cycles plus prior exposure.
+
+    Cycles without anthracycline_agent or dose_mg_per_m2 are silently skipped
+    (e.g. Taxane-only cycles, or cycles where dose data was not recorded).
+    Hard-deleted cycles are excluded automatically because they never appear
+    in the list returned by get_cycles_by_patient.
+    prior_exposure_mg_per_m2 defaults to 0 and treats None as 0.
+    """
+    total = float(prior_exposure_mg_per_m2 or 0.0)
+    for cycle in cycles:
+        if cycle.anthracycline_agent and cycle.dose_mg_per_m2:
+            total += to_doxorubicin_equivalent(
+                cycle.anthracycline_agent, cycle.dose_mg_per_m2, factors
+            )
+    return total
 
 
 def cumulative_status(

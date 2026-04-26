@@ -20,11 +20,14 @@ def create_patient(conn, patient: Patient, actor: Optional[str] = None) -> Patie
         cursor.execute(
             '''INSERT INTO patients
                (patient_id, name, age, diagnosis_date, start_date, protocol,
-                total_cycles, dose_density)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                total_cycles, dose_density,
+                prior_anthracycline_dose_mg_per_m2, prior_anthracycline_agent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (patient.patient_id, patient.name, patient.age,
              patient.diagnosis_date, patient.start_date, patient.protocol,
-             patient.total_cycles, patient.dose_density),
+             patient.total_cycles, patient.dose_density,
+             patient.prior_anthracycline_dose_mg_per_m2,
+             patient.prior_anthracycline_agent),
         )
         patient.id = cursor.lastrowid
         write_audit(conn, 'patient', patient.id, 'create',
@@ -49,11 +52,14 @@ def update_patient(conn, patient: Patient, actor: Optional[str] = None) -> Patie
         cursor.execute(
             '''UPDATE patients
                SET patient_id=?, name=?, age=?, diagnosis_date=?, start_date=?,
-                   protocol=?, total_cycles=?, dose_density=?
+                   protocol=?, total_cycles=?, dose_density=?,
+                   prior_anthracycline_dose_mg_per_m2=?, prior_anthracycline_agent=?
                WHERE id=?''',
             (patient.patient_id, patient.name, patient.age,
              patient.diagnosis_date, patient.start_date, patient.protocol,
-             patient.total_cycles, patient.dose_density, patient.id),
+             patient.total_cycles, patient.dose_density,
+             patient.prior_anthracycline_dose_mg_per_m2,
+             patient.prior_anthracycline_agent, patient.id),
         )
         write_audit(conn, 'patient', patient.id, 'update',
                     before=before, after=patient, actor=actor)
