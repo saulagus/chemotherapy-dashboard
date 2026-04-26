@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-04-26 — Sprint 6 Day 16 (US-025 Finish — LVEF Tracking)
+
+### Completed
+
+- Implemented `lvef_status(current_pct, baseline_pct, config)` pure function in `src/clinical/cardiotoxicity.py`
+  - Absolute hold: `current < absolute_hold_pct` (50%)
+  - Delta hold: `drop ≥ delta_hold_pct` (10pp) AND `current < delta_hold_absolute_ceiling_pct` (55%)
+  - Review flag: `drop ≥ review_flag_delta_pct` (16pp)
+  - All thresholds read from config dict — no magic numbers
+- Created `src/views/dialogs/lvef_dialog.py` — `LvefDialog` (add) + `EditLvefDialog` (edit)
+  - Fields: Assessment Date, LVEF %, Modality (echo/muga), Context (baseline/end_of_ac/ad_hoc), Notes
+  - Validation: date required + valid, LVEF 10–85 required
+  - Edit dialog pre-populates and routes through `update_lvef` with audit trail
+- Created `src/views/components/cardiotoxicity_panel.py`
+  - Shows latest LVEF + Δ from baseline colored by `lvef_status()` (green/yellow/red)
+  - Status badge on hold/review state
+  - History list with edit/delete per row (audit trail on delete)
+  - Empty state with inline "+ Add LVEF" link
+- Wired `CardiotoxicityPanel` into `DashboardView` as row 2 below labs/chart
+- Added 15 `lvef_status` tests to `test_clinical_cardiotoxicity.py`
+
+### Test Count
+411 tests — 15 new tests, 0 regressions
+
+### Decisions
+- `cardiotoxicity_panel.py` created now (not Day 17) so LVEF history has a proper home; Day 17 will add the cumulative dose badge to the same component
+- Status priority: absolute hold evaluated before delta hold before review — highest severity wins
+- `delta_hold_absolute_ceiling_pct` boundary is exclusive (current must be strictly `<` ceiling to trigger delta hold)
+
+### Next
+- Day 17: US-024 finish (wire cumulative summary into dashboard data layer) + US-026 start (badge + cumulative meter in `cardiotoxicity_panel.py`)
+
+---
+
 ## 2026-04-15 — Sprint 4 Day 40 (Stakeholder Demo #2 + Project Wrap-Up)
 
 ### Pre-Demo Setup
