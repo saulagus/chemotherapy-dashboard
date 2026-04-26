@@ -16,7 +16,11 @@ from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from typing import Any, List, Optional
 
-ACTIONS = {'create', 'update', 'delete', 'soft_delete', 'restore'}
+ACTIONS = {
+    'create', 'update', 'delete', 'soft_delete', 'restore',
+    # LVEF-specific actions (US-025)
+    'lvef_created', 'lvef_updated', 'lvef_deleted',
+}
 
 
 def current_actor() -> str:

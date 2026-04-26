@@ -7,9 +7,14 @@ after a destructive delete.
 
 from typing import Optional
 
-from clinical.cardiotoxicity import compute_bsa
+from clinical.cardiotoxicity import (
+    compute_bsa,
+    cumulative_doxorubicin_equivalent,
+    cumulative_status,
+    to_doxorubicin_equivalent,
+)
 from config import get as get_config
-from models import Cycle, get_cycles_by_patient
+from models import Cycle, CumulativeSummary, get_cycles_by_patient, get_patient_by_db_id
 from services.audit import write_audit
 
 
@@ -120,6 +125,50 @@ def update_cycle(conn, cycle: Cycle, actor: Optional[str] = None) -> Cycle:
         conn.rollback()
         raise
     return cycle
+
+
+def cumulative_dose(conn, patient_id: int) -> CumulativeSummary:
+    """Return the cumulative doxorubicin-equivalent dose summary for a patient.
+
+    Sums dose_mg_per_m2 across all cycles with anthracycline data, converts
+    each to doxorubicin-equivalent using config equivalence factors, adds the
+    patient's prior-anthracycline exposure, and classifies the result against
+    config thresholds.
+
+    Returns a CumulativeSummary with total_mg_per_m2, agent_breakdown, and status.
+    Returns green / 0.0 if the patient is not found or has no dose data.
+    """
+    cfg = get_config().cardiotoxicity
+    factors = dict(cfg.equivalence_factors)
+    thresholds = {
+        'yellow':    cfg.cumulative_thresholds_mg_per_m2.yellow,
+        'red':       cfg.cumulative_thresholds_mg_per_m2.red,
+        'hard_stop': cfg.cumulative_thresholds_mg_per_m2.hard_stop,
+    }
+
+    patient = get_patient_by_db_id(conn, patient_id)
+    prior = float(patient.prior_anthracycline_dose_mg_per_m2 or 0.0) if patient else 0.0
+
+    cycles = get_cycles_by_patient(conn, patient_id)
+
+    # Build per-agent doxorubicin-equivalent breakdown
+    breakdown: dict = {}
+    for cycle in cycles:
+        if cycle.anthracycline_agent and cycle.dose_mg_per_m2:
+            eq = to_doxorubicin_equivalent(
+                cycle.anthracycline_agent, cycle.dose_mg_per_m2, factors
+            )
+            key = cycle.anthracycline_agent.lower()
+            breakdown[key] = breakdown.get(key, 0.0) + eq
+
+    total = sum(breakdown.values()) + prior
+    status = cumulative_status(total, thresholds)
+
+    return CumulativeSummary(
+        total_mg_per_m2=total,
+        agent_breakdown=breakdown,
+        status=status,
+    )
 
 
 def delete_cycle(conn, cycle_id: int, actor: Optional[str] = None) -> None:

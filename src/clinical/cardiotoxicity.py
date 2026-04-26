@@ -74,8 +74,19 @@ def cumulative_status(
     total_mg_per_m2: float,
     thresholds: Dict[str, float],
 ) -> CumulativeStatus:
-    """Return green/yellow/red/hard_stop based on cumulative dose vs thresholds."""
-    raise NotImplementedError
+    """Return green/yellow/red/hard_stop based on cumulative dose vs thresholds.
+
+    Thresholds dict must contain keys: yellow, red, hard_stop (all in mg/m²).
+    Evaluation is highest-severity first so a value at exactly the hard_stop
+    boundary is returned as 'hard_stop', not 'red'.
+    """
+    if total_mg_per_m2 >= thresholds['hard_stop']:
+        return 'hard_stop'
+    if total_mg_per_m2 >= thresholds['red']:
+        return 'red'
+    if total_mg_per_m2 >= thresholds['yellow']:
+        return 'yellow'
+    return 'green'
 
 
 def lvef_status(

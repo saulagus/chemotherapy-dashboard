@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional, List
+from dataclasses import dataclass, field
+from typing import Dict, Optional, List
 from datetime import date, datetime
 
 
@@ -62,6 +62,28 @@ class Lab:
     platelets: Optional[float] = None     # Platelet count (10^9/L)
     hemoglobin: Optional[float] = None    # Hemoglobin level (g/dL)
     id: Optional[int] = None             # Auto-assigned by the database after insert.
+
+
+@dataclass
+class CumulativeSummary:
+    """Result of CycleService.cumulative_dose() — read-only, never persisted directly."""
+    total_mg_per_m2: float                                   # Doxorubicin-equivalent total
+    agent_breakdown: Dict[str, float] = field(default_factory=dict)  # agent → dox-eq mg/m²
+    status: str = 'green'                                    # green|yellow|red|hard_stop
+
+
+@dataclass
+class LvefAssessment:
+    """A single LVEF cardiac assessment record (migration 0005)."""
+    patient_id: int
+    assessment_date: date
+    lvef_percent: float
+    modality: str                        # 'echo' | 'muga'
+    context: Optional[str] = None        # 'baseline' | 'end_of_ac' | 'ad_hoc'
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None  # Non-null = soft-deleted.
+    id: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
