@@ -7,12 +7,14 @@ Run with:
     pytest tests/test_dialog_validation.py -v
 """
 
-import sys, os, sqlite3
+import sys, os
 import tkinter as tk
 from datetime import date, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+from database import get_connection
+from migrations import run_migrations
 from views.dialogs.cycle_completion_dialog import CycleCompletionDialog
 
 
@@ -21,21 +23,8 @@ from views.dialogs.cycle_completion_dialog import CycleCompletionDialog
 # ---------------------------------------------------------------------------
 
 def _make_conn():
-    conn = sqlite3.connect(':memory:')
-    conn.executescript('''
-        CREATE TABLE patients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id TEXT, name TEXT, age INTEGER,
-            diagnosis_date TEXT, start_date TEXT,
-            protocol TEXT, total_cycles INTEGER
-        );
-        CREATE TABLE cycles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id INTEGER, cycle_number INTEGER, phase TEXT,
-            planned_date TEXT, actual_date TEXT,
-            status TEXT, dose_percent REAL, dose_reason TEXT, notes TEXT
-        );
-    ''')
+    conn = get_connection(':memory:')
+    run_migrations(conn)
     return conn
 
 
@@ -209,3 +198,179 @@ def test_custom_dose_100_does_not_require_reason(root, conn):
     _set_dose(dlg, 'Custom', custom_value='100', reason='')
     errors = dlg.validate()
     assert errors == [], errors
+
+
+# ---------------------------------------------------------------------------
+# Anthracycline Dosing field validation
+# ---------------------------------------------------------------------------
+
+def _set_dosing(dlg, height='', weight='', dose_mg=''):
+    dlg.height_var.set(height)
+    dlg.weight_var.set(weight)
+    dlg.dose_mg_var.set(dose_mg)
+
+
+def test_empty_dosing_fields_no_errors(root, conn):
+    """All dosing fields optional — leaving them blank produces no errors."""
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg)
+    assert dlg.validate() == []
+
+
+def test_valid_height_weight_dose_no_errors(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, height='170', weight='65', dose_mg='105')
+    assert dlg.validate() == []
+
+
+def test_height_non_numeric_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, height='abc')
+    errors = dlg.validate()
+    assert any('height' in e.lower() for e in errors), errors
+
+
+def test_height_below_range_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, height='30')
+    errors = dlg.validate()
+    assert any('height' in e.lower() for e in errors), errors
+
+
+def test_height_above_range_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, height='350')
+    errors = dlg.validate()
+    assert any('height' in e.lower() for e in errors), errors
+
+
+def test_weight_non_numeric_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, weight='heavy')
+    errors = dlg.validate()
+    assert any('weight' in e.lower() for e in errors), errors
+
+
+def test_weight_zero_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, weight='0')
+    errors = dlg.validate()
+    assert any('weight' in e.lower() for e in errors), errors
+
+
+def test_dose_mg_non_numeric_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, dose_mg='lots')
+    errors = dlg.validate()
+    assert any('dose' in e.lower() for e in errors), errors
+
+
+def test_dose_mg_zero_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, dose_mg='0')
+    errors = dlg.validate()
+    assert any('dose' in e.lower() for e in errors), errors
+
+
+def test_dose_mg_negative_returns_error(root, conn):
+    dlg = _make_dialog(root, conn)
+    dlg.date_var.set(str(date.today()))
+    _set_dose(dlg, '100% (Full dose)')
+    _set_dosing(dlg, dose_mg='-50')
+    errors = dlg.validate()
+    assert any('dose' in e.lower() for e in errors), errors
+
+
+# ---------------------------------------------------------------------------
+# Prior cycle prefill and weight-change warning
+# ---------------------------------------------------------------------------
+
+def test_prior_height_weight_prefilled(root):
+    """Height and weight from the last cycle with measurements are prefilled."""
+    from models import Patient, Cycle
+    from services.patients import create_patient
+    from services.cycles import create_cycle
+
+    conn = _make_conn()
+    p = create_patient(conn, Patient(
+        patient_id='PT-001', name='Prefill Patient',
+        start_date=date(2026, 1, 1), protocol='AC-T', total_cycles=8,
+    ))
+    create_cycle(conn, Cycle(
+        patient_id=p.id, cycle_number=1, phase='AC',
+        actual_date=date(2026, 1, 15), status='completed',
+        height_cm=170.0, weight_kg=68.0,
+    ))
+    dlg = CycleCompletionDialog(root, conn, patient_id=p.id, cycle_number=2)
+    assert dlg.height_var.get() == '170'
+    assert dlg.weight_var.get() == '68.0'
+    dlg.destroy()
+    conn.close()
+
+
+def test_weight_change_warning_shown_when_over_threshold(root):
+    """Warning label is populated when weight changes >10% from prior cycle."""
+    from models import Patient, Cycle
+    from services.patients import create_patient
+    from services.cycles import create_cycle
+
+    conn = _make_conn()
+    p = create_patient(conn, Patient(
+        patient_id='PT-002', name='Weight Patient',
+        start_date=date(2026, 1, 1), protocol='AC-T', total_cycles=8,
+    ))
+    create_cycle(conn, Cycle(
+        patient_id=p.id, cycle_number=1, phase='AC',
+        actual_date=date(2026, 1, 15), status='completed',
+        height_cm=170.0, weight_kg=65.0,
+    ))
+    dlg = CycleCompletionDialog(root, conn, patient_id=p.id, cycle_number=2)
+    # Set weight to 80 kg — 23% change from 65 kg → should show warning
+    dlg.weight_var.set('80')
+    dlg._check_weight_warning()
+    assert '⚠' in dlg.weight_warning_label.cget('text')
+    dlg.destroy()
+    conn.close()
+
+
+def test_weight_change_warning_hidden_when_under_threshold(root):
+    """Warning label stays empty when weight is within threshold."""
+    from models import Patient, Cycle
+    from services.patients import create_patient
+    from services.cycles import create_cycle
+
+    conn = _make_conn()
+    p = create_patient(conn, Patient(
+        patient_id='PT-003', name='Stable Patient',
+        start_date=date(2026, 1, 1), protocol='AC-T', total_cycles=8,
+    ))
+    create_cycle(conn, Cycle(
+        patient_id=p.id, cycle_number=1, phase='AC',
+        actual_date=date(2026, 1, 15), status='completed',
+        height_cm=170.0, weight_kg=65.0,
+    ))
+    dlg = CycleCompletionDialog(root, conn, patient_id=p.id, cycle_number=2)
+    # Set weight to 66 kg — 1.5% change → no warning
+    dlg.weight_var.set('66')
+    dlg._check_weight_warning()
+    assert dlg.weight_warning_label.cget('text') == ''
+    dlg.destroy()
+    conn.close()

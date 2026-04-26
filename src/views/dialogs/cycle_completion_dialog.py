@@ -3,7 +3,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date
 from utils import BG, BG_ALT, SEPARATOR, FG, FG_MUTED, FONT_HINT, FONT_LABEL, FONT_BODY, FONT_HEADER
-from models import Cycle
+from clinical.cardiotoxicity import compute_bsa
+from config import get as get_config
+from models import Cycle, get_cycles_by_patient
 from services.cycles import create_cycle, update_cycle
 
 log = logging.getLogger(__name__)
@@ -48,6 +50,7 @@ class CycleCompletionDialog(tk.Toplevel):
         self.resizable(False, True)
         self.grab_set()
 
+        self._prior_height, self._prior_weight = self._fetch_prior_height_weight()
         self._build_ui()
         self._center()
         self.minsize(480, 520)
@@ -187,6 +190,82 @@ class CycleCompletionDialog(tk.Toplevel):
         self._reason_row = row
         row += 1
 
+        # ── Anthracycline Dosing ──────────────────────────────────────────────
+        tk.Frame(body, bg=SEPARATOR, height=1).grid(
+            row=row, column=0, columnspan=2, sticky='ew', pady=(4, 12))
+        row += 1
+
+        tk.Label(body, text="Anthracycline Dosing",
+                 font=('Arial', FONT_LABEL, 'bold'), bg=BG, fg=FG_MUTED, anchor='w',
+                 ).grid(row=row, column=0, columnspan=2, sticky='w', pady=(0, 10))
+        row += 1
+
+        # Height
+        self._grid_label(body, "Height (cm)", row)
+        prior_h_str = str(int(self._prior_height)) if self._prior_height else ''
+        init_height = str(self.cycle.height_cm) if self.cycle and self.cycle.height_cm else prior_h_str
+        self.height_var = tk.StringVar(value=init_height)
+        tk.Entry(body, textvariable=self.height_var,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
+                 insertbackground=FG, relief='flat',
+                 highlightbackground=SEPARATOR, highlightthickness=1,
+                 ).grid(row=row, column=1, sticky='ew', pady=(0, 12))
+        row += 1
+
+        # Weight
+        self._grid_label(body, "Weight (kg)", row)
+        prior_w_str = str(self._prior_weight) if self._prior_weight else ''
+        init_weight = str(self.cycle.weight_kg) if self.cycle and self.cycle.weight_kg else prior_w_str
+        self.weight_var = tk.StringVar(value=init_weight)
+        tk.Entry(body, textvariable=self.weight_var,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
+                 insertbackground=FG, relief='flat',
+                 highlightbackground=SEPARATOR, highlightthickness=1,
+                 ).grid(row=row, column=1, sticky='ew', pady=(0, 4))
+        row += 1
+
+        # Weight-change warning (shown when weight differs >threshold% from prior)
+        self.weight_warning_label = tk.Label(
+            body, text='', font=('Arial', FONT_HINT), bg=BG, fg='#FF9800', anchor='w',
+        )
+        self._weight_warning_row = row
+        row += 1
+
+        # Anthracycline agent
+        self._grid_label(body, "Agent", row)
+        agents = list(get_config().cardiotoxicity.equivalence_factors.keys())
+        init_agent = self.cycle.anthracycline_agent if self.cycle and self.cycle.anthracycline_agent else ''
+        self.agent_var = tk.StringVar(value=init_agent)
+        ttk.Combobox(body, textvariable=self.agent_var, values=agents,
+                     state='readonly', font=('Arial', FONT_BODY),
+                     ).grid(row=row, column=1, sticky='ew', pady=(0, 12))
+        row += 1
+
+        # Dose mg total
+        self._grid_label(body, "Dose (mg total)", row)
+        init_dose_mg = str(self.cycle.dose_mg_total) if self.cycle and self.cycle.dose_mg_total else ''
+        self.dose_mg_var = tk.StringVar(value=init_dose_mg)
+        tk.Entry(body, textvariable=self.dose_mg_var,
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
+                 insertbackground=FG, relief='flat',
+                 highlightbackground=SEPARATOR, highlightthickness=1,
+                 ).grid(row=row, column=1, sticky='ew', pady=(0, 12))
+        row += 1
+
+        # Live BSA / dose display
+        self.bsa_display_label = tk.Label(
+            body, text='', font=('Arial', FONT_HINT), bg=BG, fg=FG_MUTED, anchor='w',
+        )
+        self.bsa_display_label.grid(
+            row=row, column=0, columnspan=2, sticky='w', pady=(0, 14))
+        row += 1
+
+        # Wire live-update traces
+        self.height_var.trace_add('write', lambda *_: self._on_bsa_change())
+        self.weight_var.trace_add('write', lambda *_: self._on_bsa_change())
+        self.dose_mg_var.trace_add('write', lambda *_: self._on_bsa_change())
+        self._on_bsa_change()
+
         # ── Notes ────────────────────────────────────────────────────────────
         self._grid_label(body, "Notes (optional)", row)
         self.char_count_label = tk.Label(body, text="0 / 500",
@@ -213,12 +292,78 @@ class CycleCompletionDialog(tk.Toplevel):
         # the user modified anything — used to decide if a cancel confirmation
         # dialog is needed.
         self._initial = {
-            'date':  self.date_var.get(),
-            'dose':  self.dose_var.get(),
-            'notes': self.cycle.notes if self.cycle and self.cycle.notes else '',
+            'date':     self.date_var.get(),
+            'dose':     self.dose_var.get(),
+            'notes':    self.cycle.notes if self.cycle and self.cycle.notes else '',
+            'height':   self.height_var.get(),
+            'weight':   self.weight_var.get(),
+            'agent':    self.agent_var.get(),
+            'dose_mg':  self.dose_mg_var.get(),
         }
 
 
+
+    def _fetch_prior_height_weight(self):
+        """Return (height_cm, weight_kg) from the most recent prior cycle that has both.
+
+        Searches cycles with cycle_number < self.cycle_number. Returns (None, None)
+        if no prior cycle with measurements exists, or if the query fails gracefully.
+        """
+        try:
+            all_cycles = get_cycles_by_patient(self.conn, self.patient_id)
+        except Exception:
+            return None, None
+        prior = [
+            c for c in all_cycles
+            if c.cycle_number < self.cycle_number
+            and c.height_cm is not None and c.weight_kg is not None
+        ]
+        if not prior:
+            return None, None
+        latest = max(prior, key=lambda c: c.cycle_number)
+        return latest.height_cm, latest.weight_kg
+
+    def _on_bsa_change(self, *_):
+        """Recompute BSA and dose/m² from current field values and update display label."""
+        try:
+            h = float(self.height_var.get())
+            w = float(self.weight_var.get())
+            if h <= 0 or w <= 0:
+                raise ValueError
+            bsa = compute_bsa(h, w)
+            text = f"BSA: {bsa:.2f} m²"
+            dose_raw = self.dose_mg_var.get().strip()
+            if dose_raw:
+                dose_total = float(dose_raw)
+                if dose_total > 0:
+                    text += f"  ·  Dose: {dose_total / bsa:.1f} mg/m²"
+            self.bsa_display_label.config(text=text, fg=FG)
+        except (ValueError, ZeroDivisionError):
+            self.bsa_display_label.config(text='', fg=FG_MUTED)
+        self._check_weight_warning()
+
+    def _check_weight_warning(self):
+        """Show a warning label when the entered weight changed >threshold% from prior cycle."""
+        if self._prior_weight is None:
+            self.weight_warning_label.grid_remove()
+            return
+        try:
+            w = float(self.weight_var.get())
+            change_pct = abs(w - self._prior_weight) / self._prior_weight * 100
+            threshold = get_config().cardiotoxicity.weight_change_warning_pct
+            if change_pct > threshold:
+                self.weight_warning_label.config(
+                    text=f"⚠  Weight changed {change_pct:.1f}% from last cycle "
+                         f"({self._prior_weight} kg)"
+                )
+                self.weight_warning_label.grid(
+                    row=self._weight_warning_row, column=1,
+                    sticky='w', pady=(0, 8),
+                )
+            else:
+                self.weight_warning_label.grid_remove()
+        except (ValueError, TypeError):
+            self.weight_warning_label.grid_remove()
 
     def _grid_label(self, parent, text, row):
         """Grid-based label for column 0 of a form row."""
@@ -283,10 +428,15 @@ class CycleCompletionDialog(tk.Toplevel):
 
     def _has_changes(self) -> bool:
         """Return True if the user has modified any field from its initial value."""
-        date_changed = self.date_var.get().strip() != self._initial['date']
-        dose_changed = self.dose_var.get() != self._initial['dose']
-        notes_changed = self.notes_text.get('1.0', 'end-1c') != self._initial['notes']
-        return date_changed or dose_changed or notes_changed
+        date_changed   = self.date_var.get().strip() != self._initial['date']
+        dose_changed   = self.dose_var.get() != self._initial['dose']
+        notes_changed  = self.notes_text.get('1.0', 'end-1c') != self._initial['notes']
+        height_changed = self.height_var.get().strip() != self._initial['height']
+        weight_changed = self.weight_var.get().strip() != self._initial['weight']
+        agent_changed  = self.agent_var.get() != self._initial['agent']
+        dose_mg_changed = self.dose_mg_var.get().strip() != self._initial['dose_mg']
+        return (date_changed or dose_changed or notes_changed
+                or height_changed or weight_changed or agent_changed or dose_mg_changed)
 
     def _confirm_cancel(self):
         """Close dialog, asking for confirmation only if the form has been modified."""
@@ -329,11 +479,15 @@ class CycleCompletionDialog(tk.Toplevel):
             dose_reason = self.reason_var.get()
 
         return {
-            'date_completed':   self.date_var.get().strip(),
-            'dose_selection':   dose_selection,
-            'dose_percent_raw': dose_percent_raw,
-            'dose_reason':      dose_reason,
-            'notes':            self.notes_text.get('1.0', 'end-1c').strip() or None,
+            'date_completed':     self.date_var.get().strip(),
+            'dose_selection':     dose_selection,
+            'dose_percent_raw':   dose_percent_raw,
+            'dose_reason':        dose_reason,
+            'notes':              self.notes_text.get('1.0', 'end-1c').strip() or None,
+            'height_cm':          self.height_var.get().strip(),
+            'weight_kg':          self.weight_var.get().strip(),
+            'anthracycline_agent': self.agent_var.get() or None,
+            'dose_mg_total':      self.dose_mg_var.get().strip(),
         }
 
     def validate(self) -> list[str]:
@@ -397,6 +551,34 @@ class CycleCompletionDialog(tk.Toplevel):
             elif not data['dose_reason']:
                 errors.append("Please select a reason for the dose modification.")
 
+        # ── Anthracycline Dosing fields (all optional; validated only when filled) ──
+        height_raw = data['height_cm']
+        if height_raw:
+            try:
+                h = float(height_raw)
+                if not (50 <= h <= 300):
+                    errors.append("Height must be between 50 and 300 cm.")
+            except ValueError:
+                errors.append("Height must be a number (cm).")
+
+        weight_raw = data['weight_kg']
+        if weight_raw:
+            try:
+                w = float(weight_raw)
+                if not (1 <= w <= 400):
+                    errors.append("Weight must be between 1 and 400 kg.")
+            except ValueError:
+                errors.append("Weight must be a number (kg).")
+
+        dose_mg_raw = data['dose_mg_total']
+        if dose_mg_raw:
+            try:
+                d = float(dose_mg_raw)
+                if d <= 0:
+                    errors.append("Dose (mg total) must be greater than 0.")
+            except ValueError:
+                errors.append("Dose (mg total) must be a number.")
+
         return errors
 
     def _focus_first_error(self, errors: list[str]) -> None:
@@ -438,6 +620,15 @@ class CycleCompletionDialog(tk.Toplevel):
                 data['dose_selection'].replace('% (Full dose)', '').replace('%', '')
             )
 
+        def _parse_float(s):
+            s = (s or '').strip()
+            return float(s) if s else None
+
+        height_cm          = _parse_float(data['height_cm'])
+        weight_kg          = _parse_float(data['weight_kg'])
+        anthracycline_agent = data['anthracycline_agent']
+        dose_mg_total      = _parse_float(data['dose_mg_total'])
+
         try:
             if self.cycle is None:
                 create_cycle(self.conn, Cycle(
@@ -449,13 +640,21 @@ class CycleCompletionDialog(tk.Toplevel):
                     dose_percent=dose_percent,
                     dose_reason=dose_reason,
                     notes=notes,
+                    height_cm=height_cm,
+                    weight_kg=weight_kg,
+                    anthracycline_agent=anthracycline_agent,
+                    dose_mg_total=dose_mg_total,
                 ))
             else:
-                self.cycle.actual_date  = actual_date
-                self.cycle.status       = 'completed'
-                self.cycle.dose_percent = dose_percent
-                self.cycle.dose_reason  = dose_reason
-                self.cycle.notes        = notes
+                self.cycle.actual_date          = actual_date
+                self.cycle.status               = 'completed'
+                self.cycle.dose_percent         = dose_percent
+                self.cycle.dose_reason          = dose_reason
+                self.cycle.notes                = notes
+                self.cycle.height_cm            = height_cm
+                self.cycle.weight_kg            = weight_kg
+                self.cycle.anthracycline_agent  = anthracycline_agent
+                self.cycle.dose_mg_total        = dose_mg_total
                 update_cycle(self.conn, self.cycle)
         except Exception as e:
             log.exception(
