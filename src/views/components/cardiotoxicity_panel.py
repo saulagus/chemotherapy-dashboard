@@ -4,6 +4,7 @@ from tkinter import messagebox
 
 import config
 from clinical.cardiotoxicity import lvef_status
+from services.cycles import cumulative_dose
 from services.lvef import delete_lvef, get_baseline_lvef, list_lvef
 from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
                    FONT_BODY, FONT_HEADER, FONT_HINT, FONT_LABEL)
@@ -12,6 +13,19 @@ _STATUS_COLOR = {
     'ok':     '#4CAF50',
     'review': '#FFC107',
     'hold':   '#F44336',
+}
+
+_CUMULATIVE_COLOR = {
+    'green':     '#4CAF50',
+    'yellow':    '#FFC107',
+    'red':       '#F44336',
+    'hard_stop': '#F44336',
+}
+
+_CUMULATIVE_BADGE = {
+    'yellow':    'ADVISORY',
+    'red':       'HOLD',
+    'hard_stop': 'HARD STOP',
 }
 
 
@@ -67,23 +81,59 @@ class CardiotoxicityPanel(tk.Frame):
         self._content.pack(fill='x', padx=16, pady=12)
 
     def refresh(self):
-        """Reload LVEF records from DB and redraw."""
+        """Reload cumulative dose and LVEF records from DB and redraw."""
         self._clear_content()
 
         if self.patient_id is None:
             self._show_empty("No patient selected.")
             return
 
+        cfg = config.get().cardiotoxicity
+        summary = cumulative_dose(self.conn, self.patient_id)
+        self._show_cumulative(summary, cfg.cumulative_thresholds_mg_per_m2)
+
+        tk.Frame(self._content, bg=SEPARATOR, height=1).pack(fill='x', pady=(10, 8))
+
         assessments = list_lvef(self.conn, self.patient_id)
+        baseline = get_baseline_lvef(self.conn, self.patient_id)
+        lvef_cfg = cfg.lvef.model_dump()
 
         if not assessments:
             self._show_empty("No LVEF assessments recorded.")
-            return
+        else:
+            self._show_lvef(assessments, baseline, lvef_cfg)
 
-        baseline = get_baseline_lvef(self.conn, self.patient_id)
-        lvef_cfg = config.get().cardiotoxicity.lvef.model_dump()
+    def _show_cumulative(self, summary, thresholds):
+        label_row = tk.Frame(self._content, bg=BG_ALT)
+        label_row.pack(anchor='w', fill='x')
 
-        self._show_lvef(assessments, baseline, lvef_cfg)
+        tk.Label(label_row, text="Cumulative Anthracycline Dose",
+                 font=('Arial', FONT_LABEL, 'bold'), bg=BG_ALT, fg=FG,
+                 anchor='w').pack(side='left')
+
+        value_row = tk.Frame(self._content, bg=BG_ALT)
+        value_row.pack(anchor='w', fill='x', pady=(2, 0))
+
+        color = _CUMULATIVE_COLOR.get(summary.status, FG)
+        tk.Label(value_row,
+                 text=f"{summary.total_mg_per_m2:.1f} mg/m² dox-equiv",
+                 font=('Arial', FONT_BODY, 'bold'), bg=BG_ALT, fg=color,
+                 anchor='w').pack(side='left')
+
+        if summary.status in _CUMULATIVE_BADGE:
+            tk.Label(value_row,
+                     text=f"  [{_CUMULATIVE_BADGE[summary.status]}]",
+                     font=('Arial', FONT_LABEL, 'bold'), bg=BG_ALT,
+                     fg=color).pack(side='left')
+
+        hint = (
+            f"Thresholds: {thresholds.yellow:.0f} advisory"
+            f" · {thresholds.red:.0f} hold"
+            f" · {thresholds.hard_stop:.0f} hard stop mg/m²"
+        )
+        tk.Label(self._content, text=hint,
+                 font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED,
+                 anchor='w').pack(anchor='w', pady=(2, 0))
 
     def _show_empty(self, message: str):
         tk.Label(self._content, text=message,

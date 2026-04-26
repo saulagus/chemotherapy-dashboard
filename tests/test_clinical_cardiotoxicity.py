@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from clinical.cardiotoxicity import (
     compute_bsa,
     cumulative_doxorubicin_equivalent,
+    cumulative_status,
     lvef_status,
     to_doxorubicin_equivalent,
 )
@@ -438,3 +439,42 @@ def test_lvef_status_absolute_hold_takes_priority_over_review():
     result = lvef_status(48.0, 68.0, LVEF_CFG)
     assert result['status'] == 'hold'
     assert 'absolute' in result['reason'].lower()
+
+
+# ===========================================================================
+# cumulative_status
+# ===========================================================================
+
+THRESHOLDS = {'yellow': 300.0, 'red': 400.0, 'hard_stop': 450.0}
+
+
+def test_cumulative_status_zero_is_green():
+    assert cumulative_status(0.0, THRESHOLDS) == 'green'
+
+
+def test_cumulative_status_below_yellow_is_green():
+    assert cumulative_status(299.9, THRESHOLDS) == 'green'
+
+
+def test_cumulative_status_exactly_at_yellow_is_yellow():
+    assert cumulative_status(300.0, THRESHOLDS) == 'yellow'
+
+
+def test_cumulative_status_between_yellow_and_red_is_yellow():
+    assert cumulative_status(350.0, THRESHOLDS) == 'yellow'
+
+
+def test_cumulative_status_exactly_at_red_is_red():
+    assert cumulative_status(400.0, THRESHOLDS) == 'red'
+
+
+def test_cumulative_status_between_red_and_hard_stop_is_red():
+    assert cumulative_status(420.0, THRESHOLDS) == 'red'
+
+
+def test_cumulative_status_exactly_at_hard_stop_is_hard_stop():
+    assert cumulative_status(450.0, THRESHOLDS) == 'hard_stop'
+
+
+def test_cumulative_status_above_hard_stop_is_hard_stop():
+    assert cumulative_status(500.0, THRESHOLDS) == 'hard_stop'

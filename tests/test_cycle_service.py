@@ -11,7 +11,7 @@ from migrations import run_migrations
 from models import Cycle, Patient, get_cycles_by_patient
 from services import audit as audit_module
 from services.patients import create_patient
-from services.cycles import create_cycle, update_cycle, delete_cycle
+from services.cycles import create_cycle, update_cycle, delete_cycle, cumulative_dose
 
 
 @pytest.fixture
@@ -129,3 +129,73 @@ def test_cycle_lifecycle_audit_trail(conn, patient):
     delete_cycle(conn, c.id)
     rows = audit_module.get_audit_for_entity(conn, 'cycle', c.id)
     assert [r['action'] for r in rows] == ['delete', 'update', 'create']
+
+
+# --- cumulative_dose ---
+
+def _make_dose_cycle(patient_id, cycle_number, agent, total_mg, height=170, weight=65):
+    """Helper: cycle with height/weight/agent/dose so bsa and dose_mg_per_m2 are computed."""
+    return Cycle(
+        patient_id=patient_id, cycle_number=cycle_number,
+        phase='AC', actual_date=date(2026, 1, 15), status='completed',
+        dose_percent=100.0, height_cm=height, weight_kg=weight,
+        anthracycline_agent=agent, dose_mg_total=total_mg,
+    )
+
+
+def test_cumulative_dose_no_cycles_returns_green_zero(conn, patient):
+    summary = cumulative_dose(conn, patient.id)
+    assert summary.total_mg_per_m2 == 0.0
+    assert summary.status == 'green'
+
+
+def test_cumulative_dose_no_anthracycline_data_returns_green_zero(conn, patient):
+    create_cycle(conn, _make_cycle(patient.id))
+    summary = cumulative_dose(conn, patient.id)
+    assert summary.total_mg_per_m2 == 0.0
+    assert summary.status == 'green'
+
+
+def test_cumulative_dose_single_dox_cycle(conn, patient):
+    # BSA (Mosteller, 170cm 65kg) ≈ 1.7520 m²; total 105.12 mg → ~60 mg/m²
+    create_cycle(conn, _make_dose_cycle(patient.id, 1, 'doxorubicin', 105.12))
+    summary = cumulative_dose(conn, patient.id)
+    assert summary.total_mg_per_m2 == pytest.approx(60.0, abs=0.5)
+    assert summary.status == 'green'
+
+
+def test_cumulative_dose_four_dox_cycles_sums_correctly(conn, patient):
+    for i in range(1, 5):
+        create_cycle(conn, _make_dose_cycle(patient.id, i, 'doxorubicin', 105.12))
+    summary = cumulative_dose(conn, patient.id)
+    assert summary.total_mg_per_m2 == pytest.approx(240.0, abs=1.0)
+    assert summary.status == 'green'
+
+
+def test_cumulative_dose_prior_exposure_adds_to_total(conn):
+    p = create_patient(conn, Patient(
+        patient_id='PT-002', name='Beta',
+        start_date=date(2026, 1, 1), protocol='Standard AC-T', total_cycles=8,
+        prior_anthracycline_dose_mg_per_m2=100.0,
+    ))
+    summary = cumulative_dose(conn, p.id)
+    assert summary.total_mg_per_m2 == pytest.approx(100.0)
+
+
+def test_cumulative_dose_status_yellow_at_threshold(conn):
+    # Build enough cycles to reach yellow (300 mg/m²)
+    # Use dose_mg_total so that dose_mg_per_m2 ≈ 60 each; 5 cycles → 300
+    p = create_patient(conn, Patient(
+        patient_id='PT-003', name='Gamma',
+        start_date=date(2026, 1, 1), protocol='Standard AC-T', total_cycles=8,
+        prior_anthracycline_dose_mg_per_m2=300.0,
+    ))
+    summary = cumulative_dose(conn, p.id)
+    assert summary.status == 'yellow'
+
+
+def test_cumulative_dose_agent_breakdown_populated(conn, patient):
+    create_cycle(conn, _make_dose_cycle(patient.id, 1, 'doxorubicin', 105.12))
+    summary = cumulative_dose(conn, patient.id)
+    assert 'doxorubicin' in summary.agent_breakdown
+    assert summary.agent_breakdown['doxorubicin'] > 0

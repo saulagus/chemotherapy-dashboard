@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-04-26 — Sprint 6 Day 17 (US-024 Finish + US-026 Start — Cumulative Dose Badge)
+
+### Completed
+
+- Added `cumulative_status` tests (8 tests) to `tests/test_clinical_cardiotoxicity.py`
+  - Green/yellow/red/hard_stop at exact threshold boundaries (300/400/450 mg/m²)
+  - Zero dose → green; above hard_stop → hard_stop
+- Added `cumulative_dose` service tests (7 tests) to `tests/test_cycle_service.py`
+  - No cycles → green 0.0; no anthracycline data → green 0.0
+  - Single dox cycle → ~60 mg/m² green; four cycles → ~240 mg/m² green
+  - Prior exposure adds to total; yellow threshold test; agent breakdown populated
+- Wired `cumulative_dose(conn, patient_id)` into `CardiotoxicityPanel.refresh()` (US-024)
+  - Imported `cumulative_dose` from `services.cycles`
+  - Called alongside LVEF queries; `CumulativeSummary` passed to new display method
+- Added cumulative dose display to `CardiotoxicityPanel` (US-026 start)
+  - `_show_cumulative(summary, thresholds)` renders above LVEF section
+  - Total displayed as `X.X mg/m² dox-equiv` in status color (green/yellow/red)
+  - Badge `[ADVISORY]` / `[HOLD]` / `[HARD STOP]` shown when status is not green
+  - Threshold hint line: `300 advisory · 400 hold · 450 hard stop mg/m²`
+  - Separator line between cumulative dose and LVEF sections
+- Added `_CUMULATIVE_COLOR` and `_CUMULATIVE_BADGE` dicts to panel module
+
+### Test Count
+426 tests — 15 new tests, 0 regressions
+
+### Decisions
+- Cumulative section always renders when a patient is selected (even 0.0 green) — makes it clear dose data is being tracked, not absent
+- `_CUMULATIVE_COLOR` maps `hard_stop` to the same red as `red` — hard_stop is the most severe red state
+- Badge label uses "ADVISORY" (not "YELLOW") and "HOLD" (not "RED") — clinical language, not threshold names
+
+### Next
+- Day 18: US-026 finish — cumulative meter (visual progress bar against thresholds) in `CardiotoxicityPanel`
+
+---
+
 ## 2026-04-26 — Sprint 6 Day 16 (US-025 Finish — LVEF Tracking)
 
 ### Completed
