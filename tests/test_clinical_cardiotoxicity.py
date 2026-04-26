@@ -2,7 +2,8 @@
 
 Day 12: compute_bsa
 Day 14: to_doxorubicin_equivalent, cumulative_doxorubicin_equivalent
-Day 17: cumulative_status, lvef_status
+Day 16: lvef_status
+Day 17: cumulative_status
 """
 
 import os
@@ -17,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from clinical.cardiotoxicity import (
     compute_bsa,
     cumulative_doxorubicin_equivalent,
+    lvef_status,
     to_doxorubicin_equivalent,
 )
 
@@ -306,3 +308,133 @@ def test_cumulative_four_cycles_60_each_equals_240():
     assert total == pytest.approx(240.0)
     # 240 < yellow threshold of 300 → green
     assert total < 300.0
+
+
+# ===========================================================================
+# lvef_status
+# ===========================================================================
+
+LVEF_CFG = {
+    'absolute_hold_pct': 50.0,
+    'delta_hold_pct': 10.0,
+    'delta_hold_absolute_ceiling_pct': 55.0,
+    'review_flag_delta_pct': 16.0,
+}
+
+
+# ---------------------------------------------------------------------------
+# ok — no baseline
+# ---------------------------------------------------------------------------
+
+def test_lvef_status_ok_no_baseline():
+    result = lvef_status(62.0, None, LVEF_CFG)
+    assert result['status'] == 'ok'
+    assert result['reason'] == ''
+
+
+def test_lvef_status_ok_above_absolute_no_baseline():
+    result = lvef_status(50.1, None, LVEF_CFG)
+    assert result['status'] == 'ok'
+
+
+# ---------------------------------------------------------------------------
+# hold — absolute threshold
+# ---------------------------------------------------------------------------
+
+def test_lvef_status_hold_absolute_below_threshold():
+    result = lvef_status(49.9, None, LVEF_CFG)
+    assert result['status'] == 'hold'
+    assert '49.9' in result['reason']
+    assert '50.0' in result['reason']
+
+
+def test_lvef_status_hold_absolute_exactly_at_threshold():
+    # current == absolute_hold_pct is NOT < threshold → ok (boundary)
+    result = lvef_status(50.0, None, LVEF_CFG)
+    assert result['status'] == 'ok'
+
+
+def test_lvef_status_hold_absolute_with_baseline_ignored():
+    # Absolute hold fires even with a healthy baseline
+    result = lvef_status(48.0, 65.0, LVEF_CFG)
+    assert result['status'] == 'hold'
+
+
+# ---------------------------------------------------------------------------
+# hold — delta threshold
+# ---------------------------------------------------------------------------
+
+def test_lvef_status_hold_delta_drop_10_below_ceiling():
+    # drop=13, current=52 < 55 ceiling → hold
+    result = lvef_status(52.0, 65.0, LVEF_CFG)
+    assert result['status'] == 'hold'
+    assert '13.0' in result['reason']
+
+
+def test_lvef_status_hold_delta_exactly_10_drop_below_ceiling():
+    # drop=10 (== delta_hold_pct) AND current=54 < 55 → hold
+    result = lvef_status(54.0, 64.0, LVEF_CFG)
+    assert result['status'] == 'hold'
+
+
+def test_lvef_status_no_hold_when_current_at_or_above_ceiling():
+    # drop=10 but current=55 == ceiling (not < 55) → no delta hold
+    result = lvef_status(55.0, 65.0, LVEF_CFG)
+    # delta=10 < review_flag_delta_pct(16) → ok
+    assert result['status'] == 'ok'
+
+
+def test_lvef_status_no_hold_when_drop_below_delta_threshold():
+    # drop=9 < 10 → no hold
+    result = lvef_status(56.0, 65.0, LVEF_CFG)
+    assert result['status'] == 'ok'
+
+
+# ---------------------------------------------------------------------------
+# review
+# ---------------------------------------------------------------------------
+
+def test_lvef_status_review_drop_exactly_16():
+    # drop=16, current=56 >= 55 ceiling → no delta hold; drop>=16 → review
+    result = lvef_status(56.0, 72.0, LVEF_CFG)
+    assert result['status'] == 'review'
+    assert '16.0' in result['reason']
+
+
+def test_lvef_status_review_drop_above_16_but_above_ceiling():
+    # drop=20, current=58 >= 55 → no delta hold; drop>=16 → review
+    result = lvef_status(58.0, 78.0, LVEF_CFG)
+    assert result['status'] == 'review'
+
+
+def test_lvef_status_no_review_drop_below_16():
+    # drop=15, current=57 >= 55 → no hold, no review
+    result = lvef_status(57.0, 72.0, LVEF_CFG)
+    assert result['status'] == 'ok'
+
+
+# ---------------------------------------------------------------------------
+# ok — with baseline, small drop
+# ---------------------------------------------------------------------------
+
+def test_lvef_status_ok_small_drop_with_baseline():
+    result = lvef_status(62.0, 65.0, LVEF_CFG)
+    assert result['status'] == 'ok'
+    assert result['reason'] == ''
+
+
+def test_lvef_status_ok_lvef_improved_from_baseline():
+    # current higher than baseline → delta negative → no hold/review
+    result = lvef_status(68.0, 62.0, LVEF_CFG)
+    assert result['status'] == 'ok'
+
+
+# ---------------------------------------------------------------------------
+# priority: absolute hold beats delta/review when both could apply
+# ---------------------------------------------------------------------------
+
+def test_lvef_status_absolute_hold_takes_priority_over_review():
+    # drop=20 ≥16 → would be review, but current=48 < 50 → absolute hold wins
+    result = lvef_status(48.0, 68.0, LVEF_CFG)
+    assert result['status'] == 'hold'
+    assert 'absolute' in result['reason'].lower()

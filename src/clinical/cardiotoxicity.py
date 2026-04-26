@@ -94,5 +94,46 @@ def lvef_status(
     baseline_pct: Optional[float],
     config: Dict,
 ) -> Dict:
-    """Return {"status": ok|review|hold, "reason": str} based on LVEF thresholds."""
-    raise NotImplementedError
+    """Return {"status": ok|review|hold, "reason": str} based on LVEF thresholds.
+
+    Evaluation order (highest severity first):
+      1. Absolute hold: current < absolute_hold_pct
+      2. Delta hold:    drop >= delta_hold_pct AND current < delta_hold_absolute_ceiling_pct
+      3. Review flag:   drop >= review_flag_delta_pct
+      4. Ok
+    All thresholds read from config dict (keys match LvefSection field names).
+    """
+    absolute_hold = config['absolute_hold_pct']
+    delta_hold = config['delta_hold_pct']
+    ceiling = config['delta_hold_absolute_ceiling_pct']
+    review_flag = config['review_flag_delta_pct']
+
+    if current_pct < absolute_hold:
+        return {
+            'status': 'hold',
+            'reason': (
+                f"LVEF {current_pct}% is below absolute hold threshold "
+                f"({absolute_hold}%)"
+            ),
+        }
+
+    if baseline_pct is not None:
+        drop = baseline_pct - current_pct
+        if drop >= delta_hold and current_pct < ceiling:
+            return {
+                'status': 'hold',
+                'reason': (
+                    f"LVEF dropped {drop:.1f}pp from baseline "
+                    f"({baseline_pct}%) and is below {ceiling}%"
+                ),
+            }
+        if drop >= review_flag:
+            return {
+                'status': 'review',
+                'reason': (
+                    f"LVEF dropped {drop:.1f}pp from baseline "
+                    f"({baseline_pct}%)"
+                ),
+            }
+
+    return {'status': 'ok', 'reason': ''}

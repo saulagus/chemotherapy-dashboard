@@ -5,6 +5,7 @@ from views.components.patient_header import PatientHeader
 from views.components.timeline import TimelineComponent
 from views.components.latest_labs_panel import LatestLabsPanel
 from views.components.anc_trend_chart import ANCTrendChart
+from views.components.cardiotoxicity_panel import CardiotoxicityPanel
 
 
 class DashboardView(tk.Frame):
@@ -34,7 +35,8 @@ class DashboardView(tk.Frame):
         content.pack(fill='both', expand=True)
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=0)  # timeline fixed height
-        content.rowconfigure(1, weight=1)  # labs+chart expand to fill space
+        content.rowconfigure(1, weight=2)  # labs+chart expand
+        content.rowconfigure(2, weight=1)  # cardiotoxicity panel
 
         # ── Timeline component ─────────────────────────────────────────────────
         timeline_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
@@ -62,6 +64,12 @@ class DashboardView(tk.Frame):
         self.chart = ANCTrendChart(bottom, self.app.conn)
         self.chart.grid(row=0, column=1, sticky='nsew')
 
+        # ── Cardiotoxicity panel ───────────────────────────────────────────────
+        self.cardiotoxicity_panel = CardiotoxicityPanel(
+            content, self.app.conn, on_add_lvef=self._on_add_lvef
+        )
+        self.cardiotoxicity_panel.grid(row=2, column=0, sticky='nsew', pady=(8, 0))
+
     def set_patient(self, patient_id):
         """Load patient from DB, store in self.patient, then refresh display."""
         self.patient_id = patient_id
@@ -70,6 +78,7 @@ class DashboardView(tk.Frame):
             self.timeline.load_patient(patient_id)
             self.labs_panel.load_patient(patient_id)
             self.chart.load_patient(patient_id)
+            self.cardiotoxicity_panel.load_patient(patient_id)
         self.refresh()
 
     def refresh(self):
@@ -82,6 +91,16 @@ class DashboardView(tk.Frame):
         from views.dialogs.add_lab_dialog import AddLabDialog
         AddLabDialog(self.winfo_toplevel(), self.app.conn, self.patient_id,
                      on_save=self._refresh_labs)
+
+    def _on_add_lvef(self):
+        if self.patient_id is None:
+            return
+        from views.dialogs.lvef_dialog import LvefDialog
+        LvefDialog(self.winfo_toplevel(), self.app.conn, self.patient_id,
+                   on_save=self._refresh_lvef)
+
+    def _refresh_lvef(self):
+        self.cardiotoxicity_panel.refresh()
 
     def _on_show_history(self):
         if self.patient is None:
