@@ -2,6 +2,39 @@
 
 ---
 
+## 2026-04-26 — Sprint 6 Day 18 (US-026 Finish — Cumulative Dose Meter)
+
+### Completed
+
+- Added `_draw_meter()` method to `CardiotoxicityPanel` in `src/views/components/cardiotoxicity_panel.py`
+  - `tk.Canvas` (height=26) packed `fill='x'` below the dose value row
+  - Three zone tint backgrounds: dark green (0→300), dark yellow (300→400), dark red (400→450)
+  - Filled bar in status color from 0 to current dose (clamped to max display range)
+  - Tick marks + numeric labels at each threshold (300, 400, 450)
+  - Fully responsive — redraws via `<Configure>` binding whenever the panel width changes
+- Added `self._meter_canvas` reference to `__init__` (None until a patient is loaded)
+- Updated class docstring to reflect complete feature set
+- Created `tests/test_cardiotoxicity_panel.py` — 13 tests:
+  - Panel loads without error, no patient, with patient no data, refresh
+  - Meter canvas exists after load; is None before load (no patient)
+  - Renders correctly at green / yellow / red / hard_stop dose levels
+  - LVEF section still renders alongside cumulative dose section
+  - `_draw_meter` called with width=0 and width=1 is a silent no-op
+  - `_draw_meter` called at width=400 for all four statuses
+
+### Test Count
+439 tests — 13 new tests, 0 regressions
+
+### Decisions
+- Zone tint backgrounds use dark hex values (`#1a2e1a`, `#2e2810`, `#2e1010`) not palette constants — these are meter-specific and don't belong in the global palette
+- `hard_stop` fill color reuses the red entry from `_CUMULATIVE_COLOR` — same visual severity
+- Canvas height fixed at 26px (10px bar + tick gap + label space) — no need for dynamic height
+
+### Next
+- Day 19: US-026 follow-up or US-027 (next planned story per V2 sprint plan)
+
+---
+
 ## 2026-04-26 — Sprint 6 Day 17 (US-024 Finish + US-026 Start — Cumulative Dose Badge)
 
 ### Completed

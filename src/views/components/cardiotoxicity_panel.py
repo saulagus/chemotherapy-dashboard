@@ -32,8 +32,7 @@ _CUMULATIVE_BADGE = {
 class CardiotoxicityPanel(tk.Frame):
     """Cardiotoxicity summary panel shown in the patient dashboard.
 
-    Day 16: shows LVEF history (latest assessment + Δ from baseline).
-    Day 17+: badge and cumulative dose meter will be added here.
+    Shows cumulative anthracycline dose (badge + meter) and LVEF history.
 
     Public API
     ----------
@@ -43,10 +42,11 @@ class CardiotoxicityPanel(tk.Frame):
 
     def __init__(self, parent, conn, on_add_lvef=None, **kwargs):
         super().__init__(parent, bg=BG_ALT, **kwargs)
-        self.conn         = conn
-        self.patient_id   = None
-        self.on_add_lvef  = on_add_lvef
-        self._content     = None
+        self.conn          = conn
+        self.patient_id    = None
+        self.on_add_lvef   = on_add_lvef
+        self._content      = None
+        self._meter_canvas = None
 
         self._build_header()
         self.refresh()
@@ -134,6 +134,50 @@ class CardiotoxicityPanel(tk.Frame):
         tk.Label(self._content, text=hint,
                  font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED,
                  anchor='w').pack(anchor='w', pady=(2, 0))
+
+        canvas = tk.Canvas(self._content, height=26, bg=BG_ALT,
+                           highlightthickness=0, bd=0)
+        canvas.pack(fill='x', pady=(6, 0))
+        self._meter_canvas = canvas
+        canvas.bind('<Configure>',
+                    lambda e, s=summary, t=thresholds:
+                    self._draw_meter(canvas, e.width,
+                                     s.total_mg_per_m2, s.status, t))
+
+    def _draw_meter(self, canvas, width, total, status, thresholds):
+        canvas.delete('all')
+        if width <= 1:
+            return
+        bar_h    = 10
+        max_dose = thresholds.hard_stop * 1.1
+
+        def px(dose):
+            return max(0, min(int(dose / max_dose * width), width))
+
+        # Zone tint backgrounds
+        canvas.create_rectangle(0, 0, px(thresholds.yellow), bar_h,
+                                 fill='#1a2e1a', outline='')
+        canvas.create_rectangle(px(thresholds.yellow), 0, px(thresholds.red), bar_h,
+                                 fill='#2e2810', outline='')
+        canvas.create_rectangle(px(thresholds.red), 0, px(thresholds.hard_stop), bar_h,
+                                 fill='#2e1010', outline='')
+
+        # Filled bar in status color
+        if total > 0:
+            fill_px = px(min(total, max_dose))
+            color   = _CUMULATIVE_COLOR.get(status, '#4CAF50')
+            canvas.create_rectangle(0, 0, fill_px, bar_h, fill=color, outline='')
+
+        # Tick marks + threshold labels
+        for dose, label in [
+            (thresholds.yellow,    f'{thresholds.yellow:.0f}'),
+            (thresholds.red,       f'{thresholds.red:.0f}'),
+            (thresholds.hard_stop, f'{thresholds.hard_stop:.0f}'),
+        ]:
+            x = px(dose)
+            canvas.create_line(x, 0, x, bar_h + 3, fill=SEPARATOR, width=1)
+            canvas.create_text(x, bar_h + 4, text=label,
+                               font=('Arial', FONT_HINT), fill=FG_MUTED, anchor='n')
 
     def _show_empty(self, message: str):
         tk.Label(self._content, text=message,
