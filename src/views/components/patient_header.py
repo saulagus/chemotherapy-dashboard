@@ -1,7 +1,20 @@
 import tkinter as tk
 from datetime import date
 from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
-                   FONT_BODY, FONT_DETAIL, FONT_NAME)
+                   FONT_BODY, FONT_DETAIL, FONT_HINT, FONT_LABEL, FONT_NAME)
+
+_BADGE_TEXT = {
+    'green':     '● Green',
+    'yellow':    '⚠ Yellow',
+    'red':       '⛔ Red',
+    'hard_stop': '⛔ STOP',
+}
+_BADGE_COLOR = {
+    'green':     '#4CAF50',
+    'yellow':    '#FFC107',
+    'red':       '#F44336',
+    'hard_stop': '#F44336',
+}
 
 
 class PatientHeader(tk.Frame):
@@ -58,10 +71,19 @@ class PatientHeader(tk.Frame):
         info_frame = tk.Frame(self, bg=BG_ALT, padx=20)
         info_frame.pack(fill='x', anchor='w', pady=(0, 16))
 
-        self._name_label = tk.Label(info_frame, text="",
+        name_row = tk.Frame(info_frame, bg=BG_ALT)
+        name_row.pack(anchor='w', fill='x')
+
+        self._name_label = tk.Label(name_row, text="",
                                     font=('Arial', FONT_NAME, 'bold'),
                                     bg=BG_ALT, fg=FG, anchor='w')
-        self._name_label.pack(anchor='w')
+        self._name_label.pack(side='left')
+
+        self._badge_label = tk.Label(name_row, text="",
+                                     font=('Arial', FONT_LABEL, 'bold'),
+                                     bg=BG_ALT, fg=FG_MUTED, anchor='w',
+                                     padx=12)
+        self._badge_label.pack(side='left', pady=(6, 0))
 
         self._detail_label = tk.Label(info_frame, text="",
                                       font=('Arial', FONT_DETAIL),
@@ -84,6 +106,19 @@ class PatientHeader(tk.Frame):
         self._detail_label.config(
             text=f"{pid}  \u2502  {protocol}  \u2502  Started: {started}"
         )
+
+    def update_cumulative_badge(self, summary):
+        """Show or hide the cumulative dose risk badge next to the patient name.
+
+        Pass a CumulativeSummary (from services.cycles.cumulative_dose) or None
+        to clear the badge.
+        """
+        if summary is None:
+            self._badge_label.config(text='', fg=FG_MUTED)
+            return
+        text  = _BADGE_TEXT.get(summary.status, '')
+        color = _BADGE_COLOR.get(summary.status, FG_MUTED)
+        self._badge_label.config(text=text, fg=color)
 
     def _format_date(self, d):
         if d is None:

@@ -20,6 +20,8 @@ ACTIONS = {
     'create', 'update', 'delete', 'soft_delete', 'restore',
     # LVEF-specific actions (US-025)
     'lvef_created', 'lvef_updated', 'lvef_deleted',
+    # Cumulative-dose override actions (US-026)
+    'override_red', 'override_hard_stop',
 }
 
 

@@ -1,8 +1,22 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from models import Patient, get_cycles_by_patient, get_patient_by_db_id
+from services.cycles import cumulative_dose
 from services.patients import soft_delete_patient
-from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED, FONT_BODY, FONT_TITLE
+from utils import show_info, BG, BG_ALT, BG_ROW_ODD, SEPARATOR, FG, FG_MUTED, FONT_BODY, FONT_HINT, FONT_TITLE
+
+_RISK_TEXT = {
+    'green':     'Green',
+    'yellow':    '⚠ Yellow',
+    'red':       '⛔ Red',
+    'hard_stop': '⛔ STOP',
+}
+_RISK_FG = {
+    'green':     '#4CAF50',
+    'yellow':    '#FFC107',
+    'red':       '#F44336',
+    'hard_stop': '#F44336',
+}
 
 
 class PatientListView(tk.Frame):
@@ -11,6 +25,8 @@ class PatientListView(tk.Frame):
     def __init__(self, parent, app, **kwargs):
         super().__init__(parent, **kwargs)
         self.app = app
+        self._patient_summaries = {}   # patient.id → CumulativeSummary
+        self._tooltip_win       = None # active tooltip Toplevel or None
         self._build_ui()
         self._load_patients()
 
@@ -58,7 +74,7 @@ class PatientListView(tk.Frame):
 
         self.tree = ttk.Treeview(
             tree_frame,
-            columns=('id', 'name', 'current_cycle', 'protocol', 'age', 'diagnosis_date'),
+            columns=('id', 'name', 'current_cycle', 'protocol', 'age', 'diagnosis_date', 'risk'),
             show='headings',
             height=20,
             yscrollcommand=self._on_yscroll,
@@ -72,6 +88,7 @@ class PatientListView(tk.Frame):
         self.tree.heading('protocol',       text='Protocol')
         self.tree.heading('age',            text='Age')
         self.tree.heading('diagnosis_date', text='Diagnosis Date')
+        self.tree.heading('risk',           text='Dose Risk')
 
         # Column widths and alignment.
         self.tree.column('id',             width=130, anchor='center', stretch=False)
@@ -80,6 +97,7 @@ class PatientListView(tk.Frame):
         self.tree.column('protocol',       width=200, anchor='center', stretch=False)
         self.tree.column('age',            width=80,  anchor='center', stretch=False)
         self.tree.column('diagnosis_date', width=140, anchor='center', stretch=False)
+        self.tree.column('risk',           width=90,  anchor='center', stretch=False)
 
         self.tree.grid(row=0, column=0, sticky='nsew')
         tree_frame.columnconfigure(0, weight=1)
@@ -94,12 +112,19 @@ class PatientListView(tk.Frame):
         self.tree.tag_configure('odd',  background=BG_ROW_ODD)
         self.tree.tag_configure('hover', background='#2a3152')
 
-        # Double-click to open dashboard; Motion/Leave for hover effect.
+        # Dose-risk foreground tags — applied alongside stripe tags.
+        self.tree.tag_configure('dose_green',     foreground='#4CAF50')
+        self.tree.tag_configure('dose_yellow',    foreground='#FFC107')
+        self.tree.tag_configure('dose_red',       foreground='#F44336')
+        self.tree.tag_configure('dose_hard_stop', foreground='#F44336')
+
+        # Double-click to open dashboard; Motion/Leave for hover effect + tooltip.
         self.tree.bind('<Double-1>', self._on_row_double_click)
         self.tree.bind('<Motion>', self._on_row_hover)
         self.tree.bind('<Leave>', self._on_row_leave)
-        self._hovered_row = None
-        self._row_stripes = {}  # row_id -> 'even' | 'odd'
+        self._hovered_row  = None
+        self._row_stripes  = {}   # row_id -> 'even' | 'odd'
+        self._row_dose_tags = {}  # row_id -> 'dose_green' | 'dose_yellow' | ...
 
         # Empty-state label overlaid on the tree when no patients exist.
         self.empty_label = tk.Label(
@@ -122,31 +147,85 @@ class PatientListView(tk.Frame):
         self._on_yscroll(str(first), str(last))
 
     def _on_row_hover(self, event):
-        """Highlight the row under the cursor."""
+        """Highlight the row under the cursor and show dose tooltip over Risk column."""
         row = self.tree.identify_row(event.y)
-        if row == self._hovered_row:
-            return
-        # Restore previous row to its original stripe (no competing tags).
-        if self._hovered_row and self.tree.exists(self._hovered_row):
-            stripe = self._row_stripes.get(self._hovered_row, 'even')
-            self.tree.item(self._hovered_row, tags=(self._hovered_row, stripe))
-        # Replace stripe with hover so it's the only background tag.
-        if row:
-            self.tree.item(row, tags=(row, 'hover'))
-        self._hovered_row = row or None
+        if row != self._hovered_row:
+            # Restore previous row — dose_tag + stripe (no hover).
+            if self._hovered_row and self.tree.exists(self._hovered_row):
+                self._restore_row_tags(self._hovered_row)
+            # Apply hover background; dose_tag foreground carries through.
+            if row:
+                dose_tag = self._row_dose_tags.get(row, 'dose_green')
+                self.tree.item(row, tags=(row, dose_tag, 'hover'))
+            self._hovered_row = row or None
+
+        # Tooltip — show when hovering over the Risk column.
+        col = self.tree.identify_column(event.x)
+        if row and col == '#7':   # '#7' is the 7th column (risk)
+            self._show_risk_tooltip(event, row)
+        else:
+            self._hide_tooltip()
 
     def _on_row_leave(self, event):
-        """Remove hover highlight when the mouse leaves the treeview."""
+        """Remove hover highlight and tooltip when the mouse leaves the treeview."""
         if self._hovered_row and self.tree.exists(self._hovered_row):
-            stripe = self._row_stripes.get(self._hovered_row, 'even')
-            self.tree.item(self._hovered_row, tags=(self._hovered_row, stripe))
+            self._restore_row_tags(self._hovered_row)
         self._hovered_row = None
+        self._hide_tooltip()
+
+    def _restore_row_tags(self, row):
+        """Re-apply dose_tag + stripe tags after hover is removed."""
+        stripe   = self._row_stripes.get(row, 'even')
+        dose_tag = self._row_dose_tags.get(row, 'dose_green')
+        self.tree.item(row, tags=(row, dose_tag, stripe))
+
+    def _show_risk_tooltip(self, event, row):
+        """Display a tooltip with detailed cumulative dose info for the hovered row."""
+        self._hide_tooltip()
+        summary = self._patient_summaries.get(row)
+        if summary is None:
+            return
+        total = summary.total_mg_per_m2
+        from config import get as get_config
+        thresholds = get_config().cardiotoxicity.cumulative_thresholds_mg_per_m2
+        if summary.status == 'green':
+            headroom = thresholds.yellow - total
+            detail   = f"{headroom:.1f} mg/m² to advisory threshold"
+        elif summary.status == 'yellow':
+            headroom = thresholds.red - total
+            detail   = f"{headroom:.1f} mg/m² to hold threshold"
+        elif summary.status == 'red':
+            headroom = thresholds.hard_stop - total
+            detail   = f"{headroom:.1f} mg/m² to hard stop"
+        else:
+            detail = "Exceeds hard-stop limit"
+
+        tip_text = f"{total:.1f} mg/m² dox-equiv · {detail}"
+        win = tk.Toplevel(self)
+        win.wm_overrideredirect(True)
+        win.wm_geometry(f"+{event.x_root + 14}+{event.y_root + 6}")
+        tk.Label(win, text=tip_text, font=('Arial', FONT_HINT),
+                 bg='#ffffe0', fg='#333333',
+                 relief='solid', borderwidth=1,
+                 padx=8, pady=4).pack()
+        self._tooltip_win = win
+
+    def _hide_tooltip(self):
+        """Destroy the active tooltip window if one exists."""
+        if self._tooltip_win is not None:
+            try:
+                self._tooltip_win.destroy()
+            except Exception:
+                pass
+            self._tooltip_win = None
 
     def _load_patients(self):
         """Fetch all patients from the database and populate the Treeview."""
         # Clear all existing rows in one call before reloading.
         self.tree.delete(*self.tree.get_children())
         self._row_stripes.clear()
+        self._row_dose_tags.clear()
+        self._patient_summaries.clear()
 
         patients = Patient.get_all(self.app.conn)
 
@@ -161,17 +240,24 @@ class PatientListView(tk.Frame):
         for index, patient in enumerate(patients):
             cycles = get_cycles_by_patient(self.app.conn, patient.id)
             if cycles:
-                # Count completed cycles — e.g. "2/8" means 2 of 8 cycles done.
                 completed = sum(1 for c in cycles if c.status == 'completed')
                 current_cycle = f"{completed}/{patient.total_cycles or '?'}"
             else:
                 current_cycle = f"0/{patient.total_cycles or 8}"
 
-            # 'even'/'odd' drives the alternating stripe; patient.id enables tag-based id lookup.
+            # Cumulative dose risk for this patient.
+            summary  = cumulative_dose(self.app.conn, patient.id)
+            self._patient_summaries[str(patient.id)] = summary
+            risk_text = _RISK_TEXT.get(summary.status, '')
+            dose_tag  = f'dose_{summary.status}'
+
             stripe = 'even' if index % 2 == 0 else 'odd'
-            self._row_stripes[str(patient.id)] = stripe
+            self._row_stripes[str(patient.id)]   = stripe
+            self._row_dose_tags[str(patient.id)] = dose_tag
+
+            # dose_tag listed first — its foreground takes priority over stripe's.
             self.tree.insert('', 'end', iid=str(patient.id),
-                             tags=(str(patient.id), stripe),
+                             tags=(str(patient.id), dose_tag, stripe),
                              values=(
                                  patient.patient_id,
                                  patient.name,
@@ -179,6 +265,7 @@ class PatientListView(tk.Frame):
                                  patient.protocol or '-',
                                  patient.age if patient.age is not None else '-',
                                  str(patient.diagnosis_date) if patient.diagnosis_date else '-',
+                                 risk_text,
                              ))
 
         self.after(0, self._sync_scrollbar)

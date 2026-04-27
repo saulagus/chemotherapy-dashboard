@@ -624,10 +624,21 @@ class CycleCompletionDialog(tk.Toplevel):
             s = (s or '').strip()
             return float(s) if s else None
 
-        height_cm          = _parse_float(data['height_cm'])
-        weight_kg          = _parse_float(data['weight_kg'])
+        height_cm           = _parse_float(data['height_cm'])
+        weight_kg           = _parse_float(data['weight_kg'])
         anthracycline_agent = data['anthracycline_agent']
-        dose_mg_total      = _parse_float(data['dose_mg_total'])
+        dose_mg_total       = _parse_float(data['dose_mg_total'])
+
+        # ── Prospective cumulative dose check ──────────────────────────────────
+        override_action = None
+        override_reason = None
+        if height_cm and weight_kg and anthracycline_agent and dose_mg_total:
+            result = self._check_cumulative_block(
+                height_cm, weight_kg, anthracycline_agent, dose_mg_total
+            )
+            if result is None:
+                return   # User cancelled the override dialog
+            override_action, override_reason = result
 
         try:
             if self.cycle is None:
@@ -668,6 +679,246 @@ class CycleCompletionDialog(tk.Toplevel):
             )
             return
 
+        # Write override audit row if the user proceeded past a block.
+        if override_action and override_reason:
+            try:
+                from services.audit import write_audit, current_actor
+                saved_id = self.cycle.id if self.cycle else None
+                write_audit(
+                    self.conn, 'cycle', saved_id, override_action,
+                    after={'override_reason': override_reason},
+                    actor=current_actor(),
+                )
+                self.conn.commit()
+            except Exception:
+                log.exception('Failed to write override audit row')
+
         if self.on_save:
             self.on_save()
         self.destroy()
+
+    # ── Cumulative dose blocking ───────────────────────────────────────────────
+
+    def _check_cumulative_block(self, height_cm, weight_kg, agent, dose_mg_total):
+        """Compute prospective cumulative dose and apply configured blocking mode.
+
+        Returns
+        -------
+        (action, reason) : tuple(str | None, str | None)
+            action is 'override_red' | 'override_hard_stop' | None (no override).
+            reason is the text the user entered, or None.
+        None
+            User cancelled — caller must abort the save.
+        """
+        from clinical.cardiotoxicity import (
+            compute_bsa, cumulative_status, to_doxorubicin_equivalent,
+        )
+        from services.cycles import cumulative_dose
+        from config import get as get_config
+
+        cfg       = get_config().cardiotoxicity
+        factors   = dict(cfg.equivalence_factors)
+        thresholds = {
+            'yellow':    cfg.cumulative_thresholds_mg_per_m2.yellow,
+            'red':       cfg.cumulative_thresholds_mg_per_m2.red,
+            'hard_stop': cfg.cumulative_thresholds_mg_per_m2.hard_stop,
+        }
+
+        try:
+            bsa              = compute_bsa(height_cm, weight_kg)
+            new_per_m2       = dose_mg_total / bsa
+            new_dox_eq       = to_doxorubicin_equivalent(agent, new_per_m2, factors)
+        except (ValueError, ZeroDivisionError):
+            return (None, None)   # Can't compute — skip blocking check
+
+        current_summary = cumulative_dose(self.conn, self.patient_id)
+
+        # Subtract existing contribution of this cycle (edit path).
+        old_dox_eq = 0.0
+        if self.cycle and self.cycle.anthracycline_agent and self.cycle.dose_mg_per_m2:
+            try:
+                old_dox_eq = to_doxorubicin_equivalent(
+                    self.cycle.anthracycline_agent,
+                    self.cycle.dose_mg_per_m2,
+                    factors,
+                )
+            except ValueError:
+                pass
+
+        prospective = current_summary.total_mg_per_m2 - old_dox_eq + new_dox_eq
+        status      = cumulative_status(prospective, thresholds)
+        modes       = cfg.blocking_modes
+
+        if status == 'hard_stop' and modes.cumulative_hard_stop != 'advisory':
+            return self._hard_stop_dialog(prospective, thresholds['hard_stop'])
+        if status in ('red', 'hard_stop') and modes.cumulative_red == 'soft_block':
+            return self._soft_block_dialog(prospective, thresholds['red'], status)
+        if status in ('yellow', 'red', 'hard_stop') and modes.cumulative_yellow == 'advisory':
+            # Advisory: no blocking, just informational (shown via badge already)
+            pass
+
+        return (None, None)   # No blocking required
+
+    def _soft_block_dialog(self, prospective_total, threshold, status):
+        """Confirmation dialog for red/soft-block state. Returns (action, reason) or None."""
+        dialog = tk.Toplevel(self)
+        dialog.title('Cumulative Dose Warning')
+        dialog.configure(bg=BG)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.transient(self)
+
+        result = [None]   # mutable container for return value
+
+        tk.Frame(dialog, bg='#F44336', height=4).pack(fill='x')
+
+        body = tk.Frame(dialog, bg=BG, padx=24, pady=20)
+        body.pack(fill='both')
+
+        tk.Label(body,
+                 text=f"This cycle would bring the cumulative dose to "
+                      f"{prospective_total:.1f} mg/m²,\n"
+                      f"above the {threshold:.0f} mg/m² hold threshold.",
+                 font=('Arial', FONT_LABEL), bg=BG, fg='#F44336',
+                 justify='left', anchor='w').pack(anchor='w', pady=(0, 14))
+
+        tk.Label(body, text="Reason for proceeding (required):",
+                 font=('Arial', FONT_LABEL), bg=BG, fg=FG_MUTED,
+                 anchor='w').pack(anchor='w')
+        reason_var = tk.StringVar()
+        reason_entry = tk.Entry(body, textvariable=reason_var,
+                                font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
+                                insertbackground=FG, relief='flat',
+                                highlightbackground=SEPARATOR, highlightthickness=1)
+        reason_entry.pack(fill='x', pady=(4, 14))
+
+        err_lbl = tk.Label(body, text='', font=('Arial', FONT_HINT),
+                           bg=BG, fg='#F44336', anchor='w')
+        err_lbl.pack(anchor='w')
+
+        tk.Frame(dialog, bg=SEPARATOR, height=1).pack(fill='x')
+        btn_row = tk.Frame(dialog, bg=BG, padx=24, pady=14)
+        btn_row.pack(fill='x')
+
+        def _cancel():
+            result[0] = None
+            dialog.destroy()
+
+        def _proceed():
+            reason = reason_var.get().strip()
+            if not reason:
+                err_lbl.config(text='A reason is required to proceed.')
+                return
+            result[0] = ('override_red', reason)
+            dialog.destroy()
+
+        cancel_btn = tk.Label(btn_row, text='Cancel',
+                              font=('Arial', FONT_BODY), bg=BG, fg=FG_MUTED,
+                              cursor='hand2', padx=10)
+        cancel_btn.pack(side='right')
+        cancel_btn.bind('<Button-1>', lambda e: _cancel())
+
+        proceed_btn = tk.Label(btn_row, text='Proceed',
+                               font=('Arial', FONT_BODY, 'bold'),
+                               bg='#B71C1C', fg='#FFFFFF',
+                               cursor='hand2', padx=14, pady=6)
+        proceed_btn.pack(side='right', padx=(0, 12))
+        proceed_btn.bind('<Button-1>', lambda e: _proceed())
+
+        dialog.update_idletasks()
+        w, h = dialog.winfo_width(), dialog.winfo_height()
+        x = self.winfo_rootx() + (self.winfo_width()  - w) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - h) // 2
+        dialog.geometry(f'+{x}+{y}')
+        reason_entry.focus_set()
+        dialog.wait_window()
+        return result[0]
+
+    def _hard_stop_dialog(self, prospective_total, hard_stop_limit):
+        """Hard-stop override dialog requiring attending physician reason (≥20 chars)."""
+        dialog = tk.Toplevel(self)
+        dialog.title('Cumulative Dose — Hard Limit')
+        dialog.configure(bg=BG)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.transient(self)
+
+        result = [None]
+
+        tk.Frame(dialog, bg='#B71C1C', height=6).pack(fill='x')
+
+        body = tk.Frame(dialog, bg=BG, padx=24, pady=20)
+        body.pack(fill='both')
+
+        tk.Label(body,
+                 text=f"⛔  HARD STOP",
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG, fg='#F44336',
+                 anchor='w').pack(anchor='w', pady=(0, 8))
+        tk.Label(body,
+                 text=f"This cycle would bring the cumulative dose to "
+                      f"{prospective_total:.1f} mg/m²,\n"
+                      f"which exceeds the {hard_stop_limit:.0f} mg/m² hard-stop limit.\n\n"
+                      f"An attending physician override is required to proceed.",
+                 font=('Arial', FONT_LABEL), bg=BG, fg=FG,
+                 justify='left', anchor='w').pack(anchor='w', pady=(0, 14))
+
+        tk.Label(body, text="Attending override reason (minimum 20 characters):",
+                 font=('Arial', FONT_LABEL), bg=BG, fg=FG_MUTED,
+                 anchor='w').pack(anchor='w')
+        reason_var = tk.StringVar()
+        char_lbl = tk.Label(body, text='0 / 20 min',
+                            font=('Arial', FONT_HINT), bg=BG, fg=FG_MUTED, anchor='e')
+        char_lbl.pack(anchor='e')
+        reason_entry = tk.Entry(body, textvariable=reason_var,
+                                font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
+                                insertbackground=FG, relief='flat',
+                                highlightbackground=SEPARATOR, highlightthickness=1)
+        reason_entry.pack(fill='x', pady=(2, 14))
+
+        def _on_reason_key(*_):
+            n = len(reason_var.get().strip())
+            char_lbl.config(text=f'{n} / 20 min',
+                            fg='#4CAF50' if n >= 20 else FG_MUTED)
+        reason_var.trace_add('write', _on_reason_key)
+
+        err_lbl = tk.Label(body, text='', font=('Arial', FONT_HINT),
+                           bg=BG, fg='#F44336', anchor='w')
+        err_lbl.pack(anchor='w')
+
+        tk.Frame(dialog, bg=SEPARATOR, height=1).pack(fill='x')
+        btn_row = tk.Frame(dialog, bg=BG, padx=24, pady=14)
+        btn_row.pack(fill='x')
+
+        def _cancel():
+            result[0] = None
+            dialog.destroy()
+
+        def _override():
+            reason = reason_var.get().strip()
+            if len(reason) < 20:
+                err_lbl.config(text='Override reason must be at least 20 characters.')
+                return
+            result[0] = ('override_hard_stop', reason)
+            dialog.destroy()
+
+        cancel_btn = tk.Label(btn_row, text='Cancel',
+                              font=('Arial', FONT_BODY), bg=BG, fg=FG_MUTED,
+                              cursor='hand2', padx=10)
+        cancel_btn.pack(side='right')
+        cancel_btn.bind('<Button-1>', lambda e: _cancel())
+
+        override_btn = tk.Label(btn_row, text='Attending Override — Proceed',
+                                font=('Arial', FONT_BODY, 'bold'),
+                                bg='#7B1FA2', fg='#FFFFFF',
+                                cursor='hand2', padx=14, pady=6)
+        override_btn.pack(side='right', padx=(0, 12))
+        override_btn.bind('<Button-1>', lambda e: _override())
+
+        dialog.update_idletasks()
+        w, h = dialog.winfo_width(), dialog.winfo_height()
+        x = self.winfo_rootx() + (self.winfo_width()  - w) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - h) // 2
+        dialog.geometry(f'+{x}+{y}')
+        reason_entry.focus_set()
+        dialog.wait_window()
+        return result[0]

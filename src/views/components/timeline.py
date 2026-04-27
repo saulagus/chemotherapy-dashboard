@@ -74,10 +74,11 @@ class TimelineComponent(tk.Frame):
 
     def __init__(self, parent, controller, patient_id=None, **kwargs):
         super().__init__(parent, **kwargs)
-        self.controller = controller
-        self.patient_id = patient_id
+        self.controller    = controller
+        self.patient_id    = patient_id
         self.cycles: list[Cycle] = []          # Loaded from DB in _load_cycles()
         self._cycle_frames: list[tk.Frame] = [] # References to the 8 cycle boxes
+        self.on_cycle_save = None              # Dashboard wires this after construction
 
         self.configure(bg=_BG)
         self._build_ui()
@@ -318,17 +319,22 @@ class TimelineComponent(tk.Frame):
         from views.components.cycle_dialog import CycleDetailDialog
         from models import get_patient_by_db_id
 
+        def _on_save():
+            self.refresh()
+            if self.on_cycle_save:
+                self.on_cycle_save()
+
         if cycle is not None and cycle.status == 'completed':
             CycleDetailDialog(
                 self, self.controller.conn, self.patient_id,
-                cycle, on_save=self.refresh
+                cycle, on_save=_on_save
             )
         else:
             patient    = get_patient_by_db_id(self.controller.conn, self.patient_id)
             start_date = patient.start_date if patient else None
             CycleCompletionDialog(
                 self, self.controller.conn, self.patient_id,
-                cycle_number, cycle, on_save=self.refresh, start_date=start_date
+                cycle_number, cycle, on_save=_on_save, start_date=start_date
             )
 
     def _update_status_label(self, cycle_map: dict) -> None:

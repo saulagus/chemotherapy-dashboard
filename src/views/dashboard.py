@@ -1,6 +1,7 @@
 import tkinter as tk
 from utils import BG, BG_ALT, SEPARATOR, FONT_HEADER, FG
 from models import get_patient_by_db_id
+from services.cycles import cumulative_dose
 from views.components.patient_header import PatientHeader
 from views.components.timeline import TimelineComponent
 from views.components.latest_labs_panel import LatestLabsPanel
@@ -48,6 +49,7 @@ class DashboardView(tk.Frame):
         tk.Frame(timeline_frame, bg=SEPARATOR, height=1).pack(fill='x', pady=(6, 12))
 
         self.timeline = TimelineComponent(timeline_frame, self.app)
+        self.timeline.on_cycle_save = self._on_cycle_saved
         self.timeline.pack(anchor='w', pady=(0, 8))
 
         # ── Bottom section: labs + chart side by side ──────────────────────────
@@ -84,6 +86,20 @@ class DashboardView(tk.Frame):
     def refresh(self):
         """Refresh all dashboard components from self.patient."""
         self.header.update_display(self.patient)
+        self._refresh_header_badge()
+
+    def _refresh_header_badge(self):
+        """Recompute cumulative dose and update the header risk badge."""
+        if self.patient_id is None:
+            self.header.update_cumulative_badge(None)
+            return
+        summary = cumulative_dose(self.app.conn, self.patient_id)
+        self.header.update_cumulative_badge(summary)
+
+    def _on_cycle_saved(self):
+        """Called by TimelineComponent after any cycle create/update/delete."""
+        self.cardiotoxicity_panel.refresh()
+        self._refresh_header_badge()
 
     def _on_add_labs(self):
         if self.patient_id is None:

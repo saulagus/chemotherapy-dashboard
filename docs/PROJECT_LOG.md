@@ -2,6 +2,58 @@
 
 ---
 
+## 2026-04-26 — Sprint 6 Day 18 (US-026 — Risk Badges, Tooltip, Cycle Blocking)
+
+### Completed
+
+- Added cumulative dose risk badge to `PatientHeader` (`src/views/components/patient_header.py`)
+  - `_badge_label` placed in a `name_row` Frame alongside the patient name label
+  - `update_cumulative_badge(summary)` method sets text + color from `CumulativeSummary`
+  - Badge text: `● Green`, `⚠ Yellow`, `⛔ Red`, `⛔ STOP`
+  - Dashboard calls `update_cumulative_badge` on load and after every cycle save
+- Added Dose Risk column to `PatientListView` (`src/views/patient_list.py`)
+  - 7th Treeview column (90 px, centre-aligned, heading "Dose Risk")
+  - Per-patient `cumulative_dose()` called on list load; results cached in `_patient_summaries`
+  - Row tags `(patient_id, dose_tag, stripe)` — dose tag foreground takes priority over stripe background
+  - Hover restores both dose_tag + stripe via `_restore_row_tags()`
+  - Motion-based tooltip on Risk column: `"240.0 mg/m² dox-equiv · 60.0 mg/m² to advisory threshold"`
+- Added `on_cycle_save` callback hook to `TimelineComponent` (`src/views/components/timeline.py`)
+  - `_on_cycle_click` defines `_on_save()` that calls `self.refresh()` then `on_cycle_save()` if set
+  - Passed to both `CycleCompletionDialog` and `CycleDetailDialog` as `on_save`
+- Wired dashboard cascade refresh (`src/views/dashboard.py`)
+  - `timeline.on_cycle_save = self._on_cycle_saved` after construction
+  - `_refresh_header_badge()` computes cumulative dose and updates header badge
+  - `_on_cycle_saved()` triggers both cardiotoxicity panel refresh and header badge refresh
+- Added prospective cumulative-dose blocking to `CycleCompletionDialog`
+  - `_check_cumulative_block(height_cm, weight_kg, agent, dose_mg_total)` computes prospective total
+  - Edit path subtracts the old cycle's dox-equiv before adding the new value
+  - Advisory mode → no blocking, returns `(None, None)`
+  - Soft-block (red zone) → `_soft_block_dialog()`: red-accented Toplevel, requires non-empty reason, logs `override_red` audit action
+  - Hard-block (hard_stop zone) → `_hard_stop_dialog()`: purple-accented Toplevel, requires ≥20-char attending reason with live char counter, logs `override_hard_stop` audit action
+  - Added `override_red` and `override_hard_stop` to `services/audit.py` ACTIONS set
+- Created `tests/test_cycle_blocking.py` — 15 tests:
+  - Both override actions present in ACTIONS set
+  - `write_audit` accepts both actions; stores override reason in after-JSON
+  - Prospective math: new cycle adds; edit path subtracts old dox-equiv; epirubicin factor halved
+  - Green and yellow-advisory paths return `(None, None)` without opening any dialog
+  - Invalid height (zero BSA) skips block silently
+  - Red soft-block path: `_soft_block_dialog` called; cancel returns `None`
+  - Hard-stop path: `_hard_stop_dialog` called; cancel returns `None`
+
+### Test Count
+454 tests — 15 new tests, 0 regressions
+
+### Decisions
+- Treeview dose tag listed first in tag tuple so its `foreground` wins over stripe `background` — avoids needing per-cell style which Treeview does not support natively
+- Prospective edit-path subtraction uses `cycle.dose_mg_per_m2` (stored field) not a re-computation — avoids BSA drift between cycles
+- Soft-block dialog requires any non-empty reason; hard-stop dialog requires ≥20 chars — proportional friction to severity
+- Override audit rows written after the cycle save succeeds, inside a try/except — DB failure logs but does not roll back the clinical save
+
+### Next
+- Day 19: Next V2 sprint story per plan
+
+---
+
 ## 2026-04-26 — Sprint 6 Day 18 (US-026 Finish — Cumulative Dose Meter)
 
 ### Completed
