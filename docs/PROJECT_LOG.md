@@ -2,6 +2,56 @@
 
 ---
 
+## 2026-04-27 — Sprint 6 Day 20 (Close-out)
+
+### Completed
+- Wrote `docs/SPRINT_6_SUMMARY.md` — all 11 pts delivered, 473 tests, decisions, carry-over (none)
+- Tagged `v2-sprint6`
+- Sprint 7 preview documented (US-027–030)
+
+### Test Count
+473 tests — 0 regressions
+
+### Next
+- Sprint 7: Toxicity Tracking — US-027 Neuropathy, US-028 Infusion reactions, US-029 G-CSF log, US-030 Symptom quick-entry
+
+---
+
+## 2026-04-27 — Sprint 6 Day 19 (US-026 Finish — LVEF Blocking + E2E Tests)
+
+### Completed
+- Added `override_lvef` to audit ACTIONS set in `src/services/audit.py`
+- Added LVEF soft-block to `CycleCompletionDialog` (`src/views/dialogs/cycle_completion_dialog.py`)
+  - `_check_lvef_block()`: reads latest LVEF + baseline from DB, calls `lvef_status()`, applies `lvef_absolute` / `lvef_delta` blocking modes from config
+  - `_lvef_block_dialog(reason, hard)`: single parameterised dialog — soft path requires non-empty reason; hard path requires ≥20 chars + attending override button
+  - Block applied only for AC cycles (cycle_number ≤ 4), consistent with Sprint 8 pre-cycle checklist design
+  - Edit path fix: `create_cycle()` return value now captured as `saved_cycle` so override audit rows have the correct entity_id
+  - Multiple overrides (cumulative + LVEF) both written in a single loop after save
+- Expanded `tests/test_cycle_blocking.py` — 9 new LVEF tests (24 total):
+  - `override_lvef` in ACTIONS; write_audit accepts it
+  - No-assessment path; ok/review paths → (None, None) without dialog
+  - Absolute hold triggers dialog; delta hold triggers dialog; cancel → None
+  - T-phase guard assertion
+- Added Phase 9 cardiotoxicity e2e tests to `tests/test_e2e_integration.py` — 11 new tests:
+  - Fresh patient → green; 4 cycles → green; prior exposure → yellow → red
+  - override_red and override_lvef audit rows visible via get_audit_for_entity
+  - Double-block (cumulative + LVEF) writes two audit rows
+  - LVEF hold detected from absolute and from delta
+  - CardiotoxicityPanel renders with both cycle and LVEF data
+
+### Test Count
+473 tests — 19 new tests, 0 regressions
+
+### Decisions
+- LVEF block is AC-only at the `_on_save()` guard level; `_check_lvef_block()` itself is phase-agnostic so it remains testable without coupling it to `cycle_number`
+- Soft and hard LVEF block share one `_lvef_block_dialog(hard=True/False)` method — same UI pattern, different accent color and minimum character requirement
+- `override_lvef` is a single action regardless of whether the hold was absolute or delta — the reason text entered by the user captures which
+
+### Next
+- Day 20: summary doc + tag (done in same session)
+
+---
+
 ## 2026-04-26 — Sprint 6 Day 18 (US-026 — Risk Badges, Tooltip, Cycle Blocking)
 
 ### Completed

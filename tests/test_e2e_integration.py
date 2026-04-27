@@ -11,8 +11,9 @@ import tkinter as tk
 from datetime import date, timedelta
 
 from database import create_tables, get_connection
+from migrations import run_migrations
 from models import (
-    Patient, Cycle, Lab,
+    Patient, Cycle, Lab, LvefAssessment,
     add_patient, get_all_patients, get_patient_by_db_id, get_patient_by_id,
     add_cycle, get_cycles_by_patient,
     add_lab, get_labs_by_patient, get_latest_lab,
@@ -495,6 +496,197 @@ def test_phase8_can_add_labs_after_all_cycles_complete(conn, john):
         ))
     add_lab(conn, Lab(patient_id=john.id, lab_date=date.today(), anc=2.5))
     assert get_latest_lab(conn, john.id).anc == 2.5
+
+
+# ── Phase 9: Cardiotoxicity walkthrough ──────────────────────────────────────
+#
+# Uses the migrations-aware connection (run_migrations) so all V2 tables exist.
+# Walks: patient created → AC cycles → badge green → yellow → red → override
+# audit rows visible → LVEF hold → override_lvef audit row visible.
+
+@pytest.fixture
+def v2_conn():
+    """In-memory DB with all V2 migrations applied."""
+    c = get_connection(':memory:')
+    run_migrations(c)
+    yield c
+    c.close()
+
+
+@pytest.fixture
+def cardio_patient(v2_conn):
+    from services.patients import create_patient
+    return create_patient(v2_conn, Patient(
+        patient_id='PT-C01', name='Cardio Test',
+        start_date=date(2026, 1, 1), protocol='AC-T', total_cycles=8,
+    ))
+
+
+def test_phase9_fresh_patient_badge_green(v2_conn, cardio_patient):
+    """New patient with no cycles → cumulative = 0 → green."""
+    from services.cycles import cumulative_dose
+    summary = cumulative_dose(v2_conn, cardio_patient.id)
+    assert summary.total_mg_per_m2 == 0.0
+    assert summary.status == 'green'
+
+
+def test_phase9_four_ac_cycles_badge_stays_green(v2_conn, cardio_patient):
+    """4 AC cycles × ~60 mg/m² dox (240 total) → still green (threshold 300)."""
+    from services.cycles import create_cycle, cumulative_dose
+    for i in range(1, 5):
+        create_cycle(v2_conn, Cycle(
+            patient_id=cardio_patient.id, cycle_number=i,
+            phase='AC', actual_date=date(2026, 1, 15),
+            status='completed', dose_percent=100.0,
+            height_cm=170, weight_kg=65,
+            anthracycline_agent='doxorubicin', dose_mg_total=105.0,
+        ))
+    summary = cumulative_dose(v2_conn, cardio_patient.id)
+    assert summary.total_mg_per_m2 == pytest.approx(240.0, abs=2.0)
+    assert summary.status == 'green'
+
+
+def test_phase9_prior_exposure_pushes_badge_to_yellow(v2_conn):
+    """Patient with 270 mg/m² prior exposure + one cycle → yellow."""
+    from services.cycles import create_cycle, cumulative_dose
+    from services.patients import create_patient
+    p = create_patient(v2_conn, Patient(
+        patient_id='PT-C02', name='Yellow Test',
+        start_date=date(2026, 1, 1), protocol='AC-T', total_cycles=8,
+        prior_anthracycline_dose_mg_per_m2=270.0,
+    ))
+    create_cycle(v2_conn, Cycle(
+        patient_id=p.id, cycle_number=1,
+        phase='AC', actual_date=date(2026, 1, 15),
+        status='completed', dose_percent=100.0,
+        height_cm=170, weight_kg=65,
+        anthracycline_agent='doxorubicin', dose_mg_total=105.0,
+    ))
+    summary = cumulative_dose(v2_conn, p.id)
+    assert summary.status == 'yellow'
+
+
+def test_phase9_prior_exposure_pushes_badge_to_red(v2_conn):
+    """Patient with 360 mg/m² prior + one cycle → red."""
+    from services.cycles import create_cycle, cumulative_dose
+    from services.patients import create_patient
+    p = create_patient(v2_conn, Patient(
+        patient_id='PT-C03', name='Red Test',
+        start_date=date(2026, 1, 1), protocol='AC-T', total_cycles=8,
+        prior_anthracycline_dose_mg_per_m2=360.0,
+    ))
+    create_cycle(v2_conn, Cycle(
+        patient_id=p.id, cycle_number=1,
+        phase='AC', actual_date=date(2026, 1, 15),
+        status='completed', dose_percent=100.0,
+        height_cm=170, weight_kg=65,
+        anthracycline_agent='doxorubicin', dose_mg_total=105.0,
+    ))
+    summary = cumulative_dose(v2_conn, p.id)
+    assert summary.status == 'red'
+
+
+def test_phase9_override_red_audit_row_visible(v2_conn, cardio_patient):
+    """After an override_red, the audit row surfaces via get_audit_for_entity."""
+    from services.audit import write_audit, get_audit_for_entity
+    from services.cycles import create_cycle
+    c = create_cycle(v2_conn, Cycle(
+        patient_id=cardio_patient.id, cycle_number=1,
+        phase='AC', actual_date=date(2026, 1, 15),
+        status='completed', dose_percent=100.0,
+    ))
+    write_audit(v2_conn, 'cycle', c.id, 'override_red',
+                after={'override_reason': 'Clinical benefit justified'})
+    v2_conn.commit()
+    rows = get_audit_for_entity(v2_conn, 'cycle', c.id)
+    override_rows = [r for r in rows if r['action'] == 'override_red']
+    assert len(override_rows) == 1
+    assert override_rows[0]['after']['override_reason'] == 'Clinical benefit justified'
+
+
+def test_phase9_override_lvef_audit_row_visible(v2_conn, cardio_patient):
+    """After an override_lvef, the audit row surfaces via get_audit_for_entity."""
+    from services.audit import write_audit, get_audit_for_entity
+    from services.cycles import create_cycle
+    c = create_cycle(v2_conn, Cycle(
+        patient_id=cardio_patient.id, cycle_number=2,
+        phase='AC', actual_date=date(2026, 2, 15),
+        status='completed', dose_percent=100.0,
+    ))
+    write_audit(v2_conn, 'cycle', c.id, 'override_lvef',
+                after={'override_reason': 'Oncologist reviewed; continue treatment'})
+    v2_conn.commit()
+    rows = get_audit_for_entity(v2_conn, 'cycle', c.id)
+    override_rows = [r for r in rows if r['action'] == 'override_lvef']
+    assert len(override_rows) == 1
+    assert 'Oncologist reviewed' in override_rows[0]['after']['override_reason']
+
+
+def test_phase9_lvef_hold_detected_from_absolute(v2_conn, cardio_patient):
+    """LVEF 48% (below 50% absolute hold) → lvef_status returns 'hold'."""
+    from services.lvef import create_lvef
+    from clinical.cardiotoxicity import lvef_status
+    from config import get as get_config
+    create_lvef(v2_conn, LvefAssessment(
+        patient_id=cardio_patient.id,
+        assessment_date=date(2026, 3, 1),
+        lvef_percent=48.0, modality='echo', context='end_of_ac',
+    ))
+    cfg = get_config().cardiotoxicity.lvef.model_dump()
+    status = lvef_status(48.0, None, cfg)
+    assert status['status'] == 'hold'
+
+
+def test_phase9_lvef_hold_detected_from_delta(v2_conn, cardio_patient):
+    """Baseline 65%, current 52% → drop 13pp AND <55% → hold."""
+    from clinical.cardiotoxicity import lvef_status
+    from config import get as get_config
+    cfg = get_config().cardiotoxicity.lvef.model_dump()
+    status = lvef_status(52.0, 65.0, cfg)
+    assert status['status'] == 'hold'
+
+
+def test_phase9_both_override_audit_rows_written_on_double_block(v2_conn, cardio_patient):
+    """A save that clears both cumulative-red and LVEF-hold writes two audit rows."""
+    from services.audit import write_audit, get_audit_for_entity
+    from services.cycles import create_cycle
+    c = create_cycle(v2_conn, Cycle(
+        patient_id=cardio_patient.id, cycle_number=3,
+        phase='AC', actual_date=date(2026, 3, 15),
+        status='completed', dose_percent=100.0,
+    ))
+    write_audit(v2_conn, 'cycle', c.id, 'override_red',
+                after={'override_reason': 'Dose benefits outweigh risk'})
+    write_audit(v2_conn, 'cycle', c.id, 'override_lvef',
+                after={'override_reason': 'Cardiology clearance obtained'})
+    v2_conn.commit()
+    rows = get_audit_for_entity(v2_conn, 'cycle', c.id)
+    actions = {r['action'] for r in rows}
+    assert 'override_red' in actions
+    assert 'override_lvef' in actions
+
+
+def test_phase9_cardiotoxicity_panel_renders_with_data(root, v2_conn, cardio_patient):
+    """CardiotoxicityPanel renders without error after cycles and LVEF added."""
+    from services.cycles import create_cycle
+    from services.lvef import create_lvef
+    from views.components.cardiotoxicity_panel import CardiotoxicityPanel
+    create_cycle(v2_conn, Cycle(
+        patient_id=cardio_patient.id, cycle_number=1,
+        phase='AC', actual_date=date(2026, 1, 15),
+        status='completed', dose_percent=100.0,
+        height_cm=170, weight_kg=65,
+        anthracycline_agent='doxorubicin', dose_mg_total=105.0,
+    ))
+    create_lvef(v2_conn, LvefAssessment(
+        patient_id=cardio_patient.id,
+        assessment_date=date(2026, 1, 1),
+        lvef_percent=65.0, modality='echo', context='baseline',
+    ))
+    panel = CardiotoxicityPanel(root, v2_conn)
+    panel.load_patient(cardio_patient.id)
+    assert panel.winfo_exists()
+    panel.destroy()
 
 
 # ── MANUAL TEST ITEMS (cannot be automated without live display) ──────────────

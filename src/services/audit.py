@@ -22,6 +22,8 @@ ACTIONS = {
     'lvef_created', 'lvef_updated', 'lvef_deleted',
     # Cumulative-dose override actions (US-026)
     'override_red', 'override_hard_stop',
+    # LVEF override action (US-026)
+    'override_lvef',
 }
 
 

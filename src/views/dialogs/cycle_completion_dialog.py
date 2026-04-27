@@ -630,19 +630,28 @@ class CycleCompletionDialog(tk.Toplevel):
         dose_mg_total       = _parse_float(data['dose_mg_total'])
 
         # ── Prospective cumulative dose check ──────────────────────────────────
-        override_action = None
-        override_reason = None
+        cumulative_override_action = None
+        cumulative_override_reason = None
         if height_cm and weight_kg and anthracycline_agent and dose_mg_total:
             result = self._check_cumulative_block(
                 height_cm, weight_kg, anthracycline_agent, dose_mg_total
             )
             if result is None:
                 return   # User cancelled the override dialog
-            override_action, override_reason = result
+            cumulative_override_action, cumulative_override_reason = result
+
+        # ── LVEF block (AC phase only) ──────────────────────────────────────────
+        lvef_override_action = None
+        lvef_override_reason = None
+        if self.cycle_number <= 4:   # AC phase
+            lvef_result = self._check_lvef_block()
+            if lvef_result is None:
+                return   # User cancelled
+            lvef_override_action, lvef_override_reason = lvef_result
 
         try:
             if self.cycle is None:
-                create_cycle(self.conn, Cycle(
+                saved_cycle = create_cycle(self.conn, Cycle(
                     patient_id=self.patient_id,
                     cycle_number=self.cycle_number,
                     phase=phase,
@@ -667,6 +676,7 @@ class CycleCompletionDialog(tk.Toplevel):
                 self.cycle.anthracycline_agent  = anthracycline_agent
                 self.cycle.dose_mg_total        = dose_mg_total
                 update_cycle(self.conn, self.cycle)
+                saved_cycle = self.cycle
         except Exception as e:
             log.exception(
                 'Failed to save cycle %d for patient_id=%d',
@@ -679,19 +689,25 @@ class CycleCompletionDialog(tk.Toplevel):
             )
             return
 
-        # Write override audit row if the user proceeded past a block.
-        if override_action and override_reason:
+        # Write override audit rows for any blocks the user proceeded past.
+        overrides = []
+        if cumulative_override_action and cumulative_override_reason:
+            overrides.append((cumulative_override_action, cumulative_override_reason))
+        if lvef_override_action and lvef_override_reason:
+            overrides.append((lvef_override_action, lvef_override_reason))
+
+        if overrides:
             try:
                 from services.audit import write_audit, current_actor
-                saved_id = self.cycle.id if self.cycle else None
-                write_audit(
-                    self.conn, 'cycle', saved_id, override_action,
-                    after={'override_reason': override_reason},
-                    actor=current_actor(),
-                )
+                for action, reason in overrides:
+                    write_audit(
+                        self.conn, 'cycle', saved_cycle.id, action,
+                        after={'override_reason': reason},
+                        actor=current_actor(),
+                    )
                 self.conn.commit()
             except Exception:
-                log.exception('Failed to write override audit row')
+                log.exception('Failed to write override audit rows')
 
         if self.on_save:
             self.on_save()
@@ -758,6 +774,149 @@ class CycleCompletionDialog(tk.Toplevel):
             pass
 
         return (None, None)   # No blocking required
+
+    def _check_lvef_block(self):
+        """Check the latest LVEF for this patient and apply configured blocking mode.
+
+        Only called for AC phase cycles (cycle_number <= 4). Returns the same
+        contract as _check_cumulative_block: (action, reason) | None (cancel).
+        """
+        from clinical.cardiotoxicity import lvef_status
+        from services.lvef import get_baseline_lvef, list_lvef
+        from config import get as get_config
+
+        assessments = list_lvef(self.conn, self.patient_id)
+        if not assessments:
+            return (None, None)   # No LVEF on record — nothing to check
+
+        latest       = assessments[0]
+        baseline     = get_baseline_lvef(self.conn, self.patient_id)
+        baseline_pct = baseline.lvef_percent if baseline else None
+
+        cfg         = get_config().cardiotoxicity
+        lvef_cfg    = cfg.lvef.model_dump()
+        status_info = lvef_status(latest.lvef_percent, baseline_pct, lvef_cfg)
+
+        if status_info['status'] != 'hold':
+            return (None, None)   # ok or review — no blocking in V2
+
+        modes    = cfg.blocking_modes
+        is_hard  = (modes.lvef_absolute == 'hard_block'
+                    or modes.lvef_delta == 'hard_block')
+        is_soft  = (modes.lvef_absolute == 'soft_block'
+                    or modes.lvef_delta == 'soft_block')
+
+        if is_hard:
+            return self._lvef_block_dialog(status_info['reason'], hard=True)
+        if is_soft:
+            return self._lvef_block_dialog(status_info['reason'], hard=False)
+        return (None, None)   # Both modes advisory
+
+    def _lvef_block_dialog(self, lvef_reason: str, *, hard: bool):
+        """Confirmation dialog for an LVEF hold state.
+
+        hard=False → soft block: requires any non-empty reason.
+        hard=True  → hard block: requires ≥20-char attending reason.
+        Returns ('override_lvef', reason) or None on cancel.
+        """
+        min_chars = 20 if hard else 1
+        accent    = '#B71C1C' if hard else '#F44336'
+        btn_bg    = '#7B1FA2' if hard else '#B71C1C'
+        btn_text  = 'Attending Override — Proceed' if hard else 'Proceed'
+        title     = 'LVEF — Hard Limit' if hard else 'LVEF Hold Warning'
+
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.configure(bg=BG)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.transient(self)
+
+        result = [None]
+
+        tk.Frame(dialog, bg=accent, height=6 if hard else 4).pack(fill='x')
+
+        body = tk.Frame(dialog, bg=BG, padx=24, pady=20)
+        body.pack(fill='both')
+
+        if hard:
+            tk.Label(body, text='⛔  LVEF HARD STOP',
+                     font=('Arial', FONT_HEADER, 'bold'),
+                     bg=BG, fg='#F44336', anchor='w').pack(anchor='w', pady=(0, 8))
+
+        tk.Label(body, text=lvef_reason,
+                 font=('Arial', FONT_LABEL), bg=BG, fg='#F44336',
+                 justify='left', anchor='w').pack(anchor='w', pady=(0, 14))
+
+        prompt = ('Attending override reason (minimum 20 characters):'
+                  if hard else 'Reason for proceeding (required):')
+        tk.Label(body, text=prompt,
+                 font=('Arial', FONT_LABEL), bg=BG, fg=FG_MUTED,
+                 anchor='w').pack(anchor='w')
+
+        reason_var = tk.StringVar()
+
+        if hard:
+            char_lbl = tk.Label(body, text='0 / 20 min',
+                                font=('Arial', FONT_HINT), bg=BG,
+                                fg=FG_MUTED, anchor='e')
+            char_lbl.pack(anchor='e')
+
+            def _on_key(*_):
+                n = len(reason_var.get().strip())
+                char_lbl.config(text=f'{n} / 20 min',
+                                fg='#4CAF50' if n >= 20 else FG_MUTED)
+            reason_var.trace_add('write', _on_key)
+
+        reason_entry = tk.Entry(body, textvariable=reason_var,
+                                font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG,
+                                insertbackground=FG, relief='flat',
+                                highlightbackground=SEPARATOR, highlightthickness=1)
+        reason_entry.pack(fill='x', pady=(4, 14))
+
+        err_lbl = tk.Label(body, text='', font=('Arial', FONT_HINT),
+                           bg=BG, fg='#F44336', anchor='w')
+        err_lbl.pack(anchor='w')
+
+        tk.Frame(dialog, bg=SEPARATOR, height=1).pack(fill='x')
+        btn_row = tk.Frame(dialog, bg=BG, padx=24, pady=14)
+        btn_row.pack(fill='x')
+
+        def _cancel():
+            result[0] = None
+            dialog.destroy()
+
+        def _proceed():
+            reason = reason_var.get().strip()
+            if len(reason) < min_chars:
+                msg = (f'Override reason must be at least {min_chars} characters.'
+                       if hard else 'A reason is required to proceed.')
+                err_lbl.config(text=msg)
+                return
+            result[0] = ('override_lvef', reason)
+            dialog.destroy()
+
+        cancel_btn = tk.Label(btn_row, text='Cancel',
+                              font=('Arial', FONT_BODY), bg=BG, fg=FG_MUTED,
+                              cursor='hand2', padx=10)
+        cancel_btn.pack(side='right')
+        cancel_btn.bind('<Button-1>', lambda e: _cancel())
+
+        proceed_btn = tk.Label(btn_row, text=btn_text,
+                               font=('Arial', FONT_BODY, 'bold'),
+                               bg=btn_bg, fg='#FFFFFF',
+                               cursor='hand2', padx=14, pady=6)
+        proceed_btn.pack(side='right', padx=(0, 12))
+        proceed_btn.bind('<Button-1>', lambda e: _proceed())
+
+        dialog.update_idletasks()
+        w, h = dialog.winfo_width(), dialog.winfo_height()
+        x = self.winfo_rootx() + (self.winfo_width()  - w) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - h) // 2
+        dialog.geometry(f'+{x}+{y}')
+        reason_entry.focus_set()
+        dialog.wait_window()
+        return result[0]
 
     def _soft_block_dialog(self, prospective_total, threshold, status):
         """Confirmation dialog for red/soft-block state. Returns (action, reason) or None."""
