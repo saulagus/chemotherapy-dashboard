@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-04-27 — Sprint 7 Day 21 (Planning + Scaffolding)
+
+### Specialist YAML Review
+- All defaults accepted (no specialist overrides on Day 21); shipping config defaults as-is per plan.
+- Defaults committed: neuropathy grade→action, infusion rechallenge policy, CTCAE v5.0, symptom set, G-CSF vocab.
+
+### Plan
+- 11 pts across US-027 (neuropathy), US-028 (infusion reactions), US-029 (G-CSF), US-030 (symptom quick-entry)
+- Day-by-day: 22–23 US-027, 24–25 US-028, 26 US-029, 27–28 US-030, 29 toxicity panel + e2e, 30 close-out
+
+### Completed
+- Added `toxicity:` block to `config/institution.defaults.yaml`
+- Scaffolded `src/clinical/neuropathy.py`, `src/clinical/infusion_reactions.py`, `src/clinical/symptoms.py` (signatures only)
+- Created empty migrations 0007–0010 (up/down stubs)
+- Created empty test files for all 8 new modules
+- Verified migration runner picks up all 4 new migrations
+
+### Test Count
+473 tests — 0 regressions
+
+### Next
+- Day 22: `0007_neuropathy_assessment.py` migration + `clinical/neuropathy.py` rules + `services/neuropathy.py`
+
+---
+
 ## 2026-04-27 — Sprint 6 Day 20 (Close-out)
 
 ### Completed
