@@ -24,6 +24,14 @@ ACTIONS = {
     'override_red', 'override_hard_stop',
     # LVEF override action (US-026)
     'override_lvef',
+    # Neuropathy actions (US-027)
+    'neuropathy_created', 'neuropathy_updated', 'neuropathy_deleted',
+    # Infusion reaction actions (US-028)
+    'reaction_created', 'reaction_updated', 'reaction_deleted',
+    # G-CSF actions (US-029)
+    'gcsf_created', 'gcsf_updated', 'gcsf_deleted',
+    # Symptom actions (US-030)
+    'symptom_created', 'symptom_updated', 'symptom_deleted',
 }
 
 
