@@ -15,11 +15,18 @@ from tkinter import messagebox
 from utils import (BG, BG_ALT, SEPARATOR, FG, FG_MUTED,
                    FONT_BODY, FONT_HEADER, FONT_HINT, FONT_LABEL)
 from clinical.neuropathy import effective_grade, recommended_action
+from clinical.infusion_reactions import rechallenge_advice
 from services.neuropathy import (
     NeuropathyAssessment,
     delete_neuropathy,
     latest_neuropathy,
     list_neuropathy,
+)
+from services.infusion_reactions import (
+    InfusionReaction,
+    delete_reaction,
+    latest_reaction,
+    list_reactions,
 )
 from config import get as get_config
 
@@ -81,7 +88,7 @@ class ToxicityPanel(tk.Frame):
             return
 
         self._render_neuropathy()
-        self._render_stub("Infusion Reactions", "No reactions logged.")
+        self._render_infusion_reactions()
         self._render_stub("G-CSF Administration", "No G-CSF doses logged.")
         self._render_stub("Symptoms", "No symptoms logged.")
 
@@ -149,7 +156,65 @@ class ToxicityPanel(tk.Frame):
         _NeuropathyHistoryWindow(self, self.conn, self.patient_db_id,
                                  self.patient_str_id, on_change=self.refresh)
 
-    # ── Stub sections (filled Days 24–28) ─────────────────────────────────────
+    # ── Infusion reactions section ────────────────────────────────────────────
+
+    def _render_infusion_reactions(self):
+        section = self._section_frame("Infusion Reactions")
+        latest  = latest_reaction(self.conn, self.patient_str_id)
+
+        if latest is None:
+            row = tk.Frame(section, bg=BG_ALT)
+            row.pack(fill='x', pady=(4, 0))
+            tk.Label(row, text="No reactions logged.",
+                     font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+            add = tk.Label(row, text="+ Add",
+                           font=('Arial', FONT_HINT), bg=BG_ALT, fg='#90CAF9', cursor='hand2')
+            add.pack(side='left', padx=(8, 0))
+            add.bind('<Button-1>', lambda e: self._open_add_reaction())
+        else:
+            self._render_reaction_latest(section, latest)
+
+        self._section_action_row(section, latest,
+                                 on_add=self._open_add_reaction,
+                                 on_history=self._open_reaction_history)
+
+    def _render_reaction_latest(self, section, reaction: InfusionReaction):
+        cfg    = get_config().toxicity.model_dump()
+        grade  = reaction.severity_grade
+        color  = {1: '#4CAF50', 2: '#FFC107', 3: '#FF9800', 4: '#F44336'}.get(grade, FG)
+
+        summary_row = tk.Frame(section, bg=BG_ALT)
+        summary_row.pack(fill='x', pady=(4, 0))
+
+        tk.Label(summary_row,
+                 text=f"● G{grade}",
+                 font=('Arial', FONT_BODY, 'bold'), bg=BG_ALT, fg=color).pack(side='left')
+        tk.Label(summary_row,
+                 text=f"  {reaction.agent}  ·  onset {reaction.onset_min} min",
+                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG).pack(side='left')
+
+        try:
+            advice = rechallenge_advice(grade, cfg)
+            adv_color = '#e05555' if advice.hard_block else '#FFA726'
+            tk.Label(section, text=advice.advisory_text,
+                     font=('Arial', FONT_HINT), bg=BG_ALT, fg=adv_color,
+                     anchor='w', wraplength=400).pack(fill='x', pady=(2, 0))
+        except Exception:
+            pass
+
+    def _open_add_reaction(self):
+        if not self.patient_db_id:
+            return
+        from views.dialogs.infusion_reaction_dialog import InfusionReactionDialog
+        InfusionReactionDialog(self, self.conn, self.patient_db_id, on_save=self.refresh)
+
+    def _open_reaction_history(self):
+        if not self.patient_str_id:
+            return
+        _ReactionHistoryWindow(self, self.conn, self.patient_db_id,
+                               self.patient_str_id, on_change=self.refresh)
+
+    # ── Stub sections (filled Days 26–28) ─────────────────────────────────────
 
     def _render_stub(self, title: str, empty_text: str):
         section = self._section_frame(title)
@@ -256,6 +321,87 @@ class _NeuropathyHistoryWindow(tk.Toplevel):
                                    "Delete this neuropathy assessment?", parent=self):
             return
         delete_neuropathy(self.conn, assessment_id)
+        if self.on_change:
+            self.on_change()
+        self._refresh()
+
+    def _refresh(self):
+        for w in self.winfo_children():
+            w.destroy()
+        self._build()
+
+
+# ── Infusion reaction history window ─────────────────────────────────────────
+
+class _ReactionHistoryWindow(tk.Toplevel):
+    """Lightweight history list for infusion reactions."""
+
+    def __init__(self, parent, conn, patient_db_id: int, patient_str_id: str, on_change=None):
+        super().__init__(parent)
+        self.conn           = conn
+        self.patient_db_id  = patient_db_id
+        self.patient_str_id = patient_str_id
+        self.on_change      = on_change
+
+        self.title("Infusion Reaction History")
+        self.configure(bg=BG)
+        self.geometry('600x420')
+        self.grab_set()
+        self._build()
+
+    def _build(self):
+        tk.Label(self, text="Infusion Reactions",
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG, fg=FG,
+                 padx=16, pady=12).pack(anchor='w')
+        tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
+
+        frame = tk.Frame(self, bg=BG)
+        frame.pack(fill='both', expand=True, padx=16, pady=12)
+
+        rows = list_reactions(self.conn, self.patient_str_id)
+        if not rows:
+            tk.Label(frame, text="No reactions on record.",
+                     font=('Arial', FONT_BODY), bg=BG, fg=FG_MUTED).pack(anchor='w')
+            return
+
+        cfg = get_config().toxicity.model_dump()
+        for r in rows:
+            self._render_row(frame, r, cfg)
+
+    def _render_row(self, parent, reaction: InfusionReaction, cfg: dict):
+        grade = reaction.severity_grade
+        color = {1: '#4CAF50', 2: '#FFC107', 3: '#FF9800', 4: '#F44336'}.get(grade, FG)
+
+        row = tk.Frame(parent, bg=BG)
+        row.pack(fill='x', pady=3)
+
+        tk.Label(row, text=f"● G{grade}",
+                 font=('Arial', FONT_BODY, 'bold'), bg=BG, fg=color).pack(side='left')
+        tk.Label(row,
+                 text=f"  {reaction.agent}  onset {reaction.onset_min} min",
+                 font=('Arial', FONT_BODY), bg=BG, fg=FG).pack(side='left')
+
+        del_btn = tk.Label(row, text="Delete",
+                           font=('Arial', FONT_HINT), bg=BG, fg='#e05555', cursor='hand2',
+                           padx=8)
+        del_btn.pack(side='right')
+        del_btn.bind('<Button-1>', lambda e, rid=reaction.id: self._on_delete(rid))
+
+        edit_btn = tk.Label(row, text="Edit",
+                            font=('Arial', FONT_HINT), bg=BG, fg='#90CAF9', cursor='hand2')
+        edit_btn.pack(side='right')
+        edit_btn.bind('<Button-1>', lambda e, rec=reaction: self._on_edit(rec))
+
+    def _on_edit(self, reaction: InfusionReaction):
+        from views.dialogs.infusion_reaction_dialog import EditInfusionReactionDialog
+        EditInfusionReactionDialog(self, self.conn, reaction,
+                                   self.patient_db_id, on_save=self._refresh)
+
+    def _on_delete(self, reaction_id: int):
+        if not messagebox.askyesno("Delete Reaction",
+                                   "Delete this infusion reaction?", parent=self):
+            return
+        delete_reaction(self.conn, reaction_id)
         if self.on_change:
             self.on_change()
         self._refresh()
