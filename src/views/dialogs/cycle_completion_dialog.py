@@ -709,9 +709,37 @@ class CycleCompletionDialog(tk.Toplevel):
             except Exception:
                 log.exception('Failed to write override audit rows')
 
-        if self.on_save:
-            self.on_save()
-        self.destroy()
+        self._prompt_symptom_entry(saved_cycle)
+
+    # ── Symptom quick-entry prompt ─────────────────────────────────────────────
+
+    def _prompt_symptom_entry(self, saved_cycle):
+        """After a successful cycle save, offer symptom capture (skippable)."""
+        from views.dialogs.symptom_quick_entry_dialog import SymptomQuickEntryDialog
+
+        def _finish():
+            if self.on_save:
+                self.on_save()
+            self.destroy()
+
+        answer = messagebox.askyesno(
+            'Symptom Check',
+            f'Record symptoms for Cycle {saved_cycle.cycle_number}?\n\n'
+            'Yes to enter grades now — No to skip.',
+            parent=self,
+        )
+        if answer:
+            self.withdraw()
+            SymptomQuickEntryDialog(
+                self.master,
+                self.conn,
+                patient_id=self.patient_id,
+                cycle=saved_cycle,
+                on_save=_finish,
+                on_skip=_finish,
+            )
+        else:
+            _finish()
 
     # ── Cumulative dose blocking ───────────────────────────────────────────────
 

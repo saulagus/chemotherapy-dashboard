@@ -34,6 +34,12 @@ from services.gcsf import (
     latest_gcsf,
     list_gcsf,
 )
+from services.symptoms import (
+    SymptomEntry,
+    delete_symptom,
+    latest_cycle_symptoms,
+    list_symptoms,
+)
 from config import get as get_config
 
 _NEUROPATHY_COLOR = {
@@ -96,7 +102,7 @@ class ToxicityPanel(tk.Frame):
         self._render_neuropathy()
         self._render_infusion_reactions()
         self._render_gcsf()
-        self._render_stub("Symptoms", "No symptoms logged.")
+        self._render_symptoms()
 
     # ── Neuropathy section ────────────────────────────────────────────────────
 
@@ -268,12 +274,75 @@ class ToxicityPanel(tk.Frame):
         _GcsfHistoryWindow(self, self.conn, self.patient_db_id,
                            self.patient_str_id, on_change=self.refresh)
 
-    # ── Stub sections (filled Day 27–28) ─────────────────────────────────────
+    # ── Symptoms section ──────────────────────────────────────────────────────
 
-    def _render_stub(self, title: str, empty_text: str):
-        section = self._section_frame(title)
-        tk.Label(section, text=empty_text,
-                 font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED).pack(anchor='w', pady=(4, 0))
+    def _render_symptoms(self):
+        section = self._section_frame("Symptoms")
+        entries = latest_cycle_symptoms(self.conn, self.patient_str_id)
+
+        if not entries:
+            row = tk.Frame(section, bg=BG_ALT)
+            row.pack(fill='x', pady=(4, 0))
+            tk.Label(row, text="No symptoms logged.",
+                     font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED).pack(side='left')
+            add = tk.Label(row, text="+ Add",
+                           font=('Arial', FONT_HINT), bg=BG_ALT, fg='#90CAF9', cursor='hand2')
+            add.pack(side='left', padx=(8, 0))
+            add.bind('<Button-1>', lambda e: self._open_add_symptoms())
+        else:
+            self._render_symptoms_latest(section, entries)
+
+        self._section_action_row(
+            section,
+            entries[0] if entries else None,
+            on_add=self._open_add_symptoms,
+            on_history=self._open_symptom_history,
+        )
+
+    def _render_symptoms_latest(self, section, entries: list):
+        from clinical.symptoms import is_advisory
+        cfg = get_config().toxicity.model_dump()
+
+        d = entries[0].entry_date
+        date_str = d.isoformat() if hasattr(d, 'isoformat') else str(d)
+        tk.Label(section, text=date_str,
+                 font=('Arial', FONT_HINT), bg=BG_ALT, fg=FG_MUTED,
+                 anchor='w').pack(anchor='w', pady=(4, 2))
+
+        sym_row = tk.Frame(section, bg=BG_ALT)
+        sym_row.pack(fill='x')
+        for entry in entries:
+            grade = entry.grade
+            name  = entry.symptom.replace('_', ' ').capitalize()
+            color = _NEUROPATHY_COLOR.get(grade, FG)
+            tk.Label(sym_row,
+                     text=f"{name} G{grade}",
+                     font=('Arial', FONT_HINT), bg=BG_ALT, fg=color,
+                     ).pack(side='left', padx=(0, 12))
+
+    def _open_add_symptoms(self):
+        if not self.patient_db_id:
+            return
+        from models import get_cycles_by_patient
+        cycles = [c for c in get_cycles_by_patient(self.conn, self.patient_db_id)
+                  if c.status == 'completed']
+        if not cycles:
+            messagebox.showinfo(
+                'No Completed Cycles',
+                'Complete a treatment cycle first before recording symptoms.',
+                parent=self,
+            )
+            return
+        latest = max(cycles, key=lambda c: c.cycle_number)
+        from views.dialogs.symptom_quick_entry_dialog import SymptomQuickEntryDialog
+        SymptomQuickEntryDialog(self, self.conn, patient_id=self.patient_db_id,
+                                cycle=latest, on_save=self.refresh)
+
+    def _open_symptom_history(self):
+        if not self.patient_str_id:
+            return
+        _SymptomHistoryWindow(self, self.conn, self.patient_db_id,
+                              self.patient_str_id, on_change=self.refresh)
 
     # ── Shared helpers ────────────────────────────────────────────────────────
 
@@ -536,6 +605,79 @@ class _GcsfHistoryWindow(tk.Toplevel):
                                    "Delete this G-CSF administration?", parent=self):
             return
         delete_gcsf(self.conn, gcsf_id)
+        if self.on_change:
+            self.on_change()
+        self._refresh()
+
+    def _refresh(self):
+        for w in self.winfo_children():
+            w.destroy()
+        self._build()
+
+
+# ── Symptom history window ────────────────────────────────────────────────────
+
+class _SymptomHistoryWindow(tk.Toplevel):
+    """Lightweight history list for symptom entries."""
+
+    def __init__(self, parent, conn, patient_db_id: int, patient_str_id: str, on_change=None):
+        super().__init__(parent)
+        self.conn           = conn
+        self.patient_db_id  = patient_db_id
+        self.patient_str_id = patient_str_id
+        self.on_change      = on_change
+
+        self.title("Symptom History")
+        self.configure(bg=BG)
+        self.geometry('580x420')
+        self.grab_set()
+        self._build()
+
+    def _build(self):
+        tk.Label(self, text="Symptom Entries",
+                 font=('Arial', FONT_HEADER, 'bold'), bg=BG, fg=FG,
+                 padx=16, pady=12).pack(anchor='w')
+        tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
+
+        frame = tk.Frame(self, bg=BG)
+        frame.pack(fill='both', expand=True, padx=16, pady=12)
+
+        rows = list_symptoms(self.conn, self.patient_str_id)
+        if not rows:
+            tk.Label(frame, text="No symptom entries on record.",
+                     font=('Arial', FONT_BODY), bg=BG, fg=FG_MUTED).pack(anchor='w')
+            return
+
+        for entry in rows:
+            self._render_row(frame, entry)
+
+    def _render_row(self, parent, entry: SymptomEntry):
+        grade = entry.grade
+        color = _NEUROPATHY_COLOR.get(grade, FG)
+        d = entry.entry_date
+        date_str = d.isoformat() if hasattr(d, 'isoformat') else str(d)
+        name = entry.symptom.replace('_', ' ').capitalize()
+
+        row = tk.Frame(parent, bg=BG)
+        row.pack(fill='x', pady=3)
+
+        tk.Label(row, text=f"● G{grade}",
+                 font=('Arial', FONT_BODY, 'bold'), bg=BG, fg=color).pack(side='left')
+        tk.Label(row,
+                 text=f"  {name}  ·  {date_str}",
+                 font=('Arial', FONT_BODY), bg=BG, fg=FG).pack(side='left')
+
+        del_btn = tk.Label(row, text="Delete",
+                           font=('Arial', FONT_HINT), bg=BG, fg='#e05555', cursor='hand2',
+                           padx=8)
+        del_btn.pack(side='right')
+        del_btn.bind('<Button-1>', lambda e, eid=entry.id: self._on_delete(eid))
+
+    def _on_delete(self, entry_id: int):
+        if not messagebox.askyesno("Delete Symptom",
+                                   "Delete this symptom entry?", parent=self):
+            return
+        delete_symptom(self.conn, entry_id)
         if self.on_change:
             self.on_change()
         self._refresh()

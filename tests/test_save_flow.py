@@ -224,20 +224,28 @@ def test_save_does_not_duplicate_row(root, conn, existing_cycle):
 # ---------------------------------------------------------------------------
 
 def test_dialog_closes_after_successful_save(root, conn):
+    import unittest.mock as mock
     dlg = _make_dialog(root, conn, cycle_number=2)
     dlg.date_var.set('2026-03-15')
     _set_dose(dlg, '100% (Full dose)')
-    dlg._on_save()
+    # Patch askyesno to simulate user skipping the symptom prompt
+    with mock.patch('views.dialogs.cycle_completion_dialog.messagebox') as mb:
+        mb.askyesno.return_value = False
+        dlg._on_save()
 
     assert not dlg.winfo_exists(), 'Dialog should be destroyed after a successful save'
 
 
 def test_on_save_callback_fired(root, conn):
+    import unittest.mock as mock
     fired = []
     dlg = _make_dialog(root, conn, cycle_number=2, on_save=lambda: fired.append(True))
     dlg.date_var.set('2026-03-15')
     _set_dose(dlg, '100% (Full dose)')
-    dlg._on_save()
+    # Patch askyesno to simulate user skipping the symptom prompt
+    with mock.patch('views.dialogs.cycle_completion_dialog.messagebox') as mb:
+        mb.askyesno.return_value = False
+        dlg._on_save()
 
     assert fired == [True], 'on_save callback should fire exactly once'
 
