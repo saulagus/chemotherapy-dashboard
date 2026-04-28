@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-04-28 — Sprint 7 Day 30 (Close-out)
+
+### Completed
+- Day 28: Hooked `SymptomQuickEntryDialog` into cycle-completion save flow; wired symptoms section in `ToxicityPanel`; added `_SymptomHistoryWindow`
+- Day 29: Wrote 23-test suite for `ToxicityPanel` covering all four sections, history windows, add-symptoms guard, and empty-state rendering
+- Day 30: `docs/SPRINT_7_SUMMARY.md` written; `PROJECT_LOG.md` closed; tagged `v2-sprint7`
+
+### Test Count
+636 tests — 0 regressions
+
+### Sprint 7 Final Status
+All four user stories delivered:
+- US-027 Neuropathy (CTCAE v5): grade + action rules, service, dialog, panel section — DONE
+- US-028 Infusion Reactions: rechallenge advisory, dialog, panel section — DONE
+- US-029 G-CSF Administration: agent vocab, stimulated-window chart markers — DONE
+- US-030 Symptom Quick-Entry: phase-adaptive set, batch insert, cycle-completion hook, panel section — DONE
+
+---
+
 ## 2026-04-27 — Sprint 7 Day 21 (Planning + Scaffolding)
 
 ### Specialist YAML Review
