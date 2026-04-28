@@ -4,7 +4,7 @@ Only fields needed by the current sprint are declared. Later sprints extend
 the schema as stories land.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -81,6 +81,104 @@ class CardiotoxicitySection(BaseModel):
     blocking_modes: BlockingModesSection = Field(default_factory=BlockingModesSection)
 
 
+# ---------------------------------------------------------------------------
+# Toxicity section (Sprint 7 — US-027–030)
+# ---------------------------------------------------------------------------
+
+class NeuropathyGradeAction(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    dose_pct: int = Field(ge=0, le=100)
+    action: str
+
+
+class NeuropathySection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    grade_actions: Dict[int, NeuropathyGradeAction] = Field(
+        default_factory=lambda: {
+            0: NeuropathyGradeAction(dose_pct=100, action='continue'),
+            1: NeuropathyGradeAction(dose_pct=100, action='continue'),
+            2: NeuropathyGradeAction(dose_pct=80,  action='hold_one_cycle_then_resume'),
+            3: NeuropathyGradeAction(dose_pct=75,  action='hold_until_recovered_then_resume_discontinue_on_recurrence'),
+            4: NeuropathyGradeAction(dose_pct=0,   action='discontinue_permanently'),
+        }
+    )
+    use_higher_grade_for_action: bool = True
+
+
+class RechallengeRule(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    rechallenge: bool
+    rate_pct: Optional[int] = None
+    premed_enhance: bool = False
+    switch_agent_to: Optional[str] = None
+    hard_block: bool = False
+
+
+class InfusionReactionsSection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    symptom_vocab: List[str] = Field(
+        default_factory=lambda: [
+            'flushing', 'urticaria', 'hypotension', 'hypertension',
+            'dyspnea', 'bronchospasm', 'back_pain', 'chest_pain', 'anaphylaxis',
+        ]
+    )
+    rechallenge_policy: Dict[int, RechallengeRule] = Field(
+        default_factory=lambda: {
+            1: RechallengeRule(rechallenge=True,  rate_pct=50, premed_enhance=False),
+            2: RechallengeRule(rechallenge=True,  rate_pct=50, premed_enhance=True),
+            3: RechallengeRule(rechallenge=False, switch_agent_to='nab_paclitaxel_or_docetaxel'),
+            4: RechallengeRule(rechallenge=False, switch_agent_to='nab_paclitaxel_or_docetaxel', hard_block=True),
+        }
+    )
+
+
+class GcsfPolicySection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    dose_dense_q2w: str = 'primary'
+    standard_q3w: str = 'secondary'
+
+
+class GcsfSection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    agent_vocab: List[str] = Field(
+        default_factory=lambda: ['pegfilgrastim', 'filgrastim', 'lipegfilgrastim']
+    )
+    policy: GcsfPolicySection = Field(default_factory=GcsfPolicySection)
+    stimulated_window_days: int = Field(default=7, ge=1)
+
+
+class SymptomsSection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    set_all_phases: List[str] = Field(
+        default_factory=lambda: ['nausea', 'fatigue', 'mucositis', 'constipation']
+    )
+    set_t_phase_additional: List[str] = Field(
+        default_factory=lambda: ['arthralgia', 'peripheral_edema']
+    )
+    advisory_grade: int = Field(default=3, ge=0, le=4)
+
+
+class ToxicityBlockingModesSection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    neuropathy_grade_2: BlockingMode = 'advisory'
+    neuropathy_grade_3_before_t: BlockingMode = 'soft_block'
+    neuropathy_grade_4: BlockingMode = 'hard_block'
+    infusion_reaction_grade_4: BlockingMode = 'hard_block'
+    symptoms_grade_3_or_higher: BlockingMode = 'advisory'
+
+
+class ToxicitySection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    ctcae_version: str = '5.0'
+    neuropathy: NeuropathySection = Field(default_factory=NeuropathySection)
+    infusion_reactions: InfusionReactionsSection = Field(default_factory=InfusionReactionsSection)
+    gcsf: GcsfSection = Field(default_factory=GcsfSection)
+    symptoms: SymptomsSection = Field(default_factory=SymptomsSection)
+    blocking_modes: ToxicityBlockingModesSection = Field(default_factory=ToxicityBlockingModesSection)
+
+
+# ---------------------------------------------------------------------------
+
 class InstitutionConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
     institution: InstitutionSection = Field(default_factory=InstitutionSection)
@@ -88,3 +186,4 @@ class InstitutionConfig(BaseModel):
     cycles: CyclesSection = Field(default_factory=CyclesSection)
     backup: BackupSection = Field(default_factory=BackupSection)
     cardiotoxicity: CardiotoxicitySection = Field(default_factory=CardiotoxicitySection)
+    toxicity: ToxicitySection = Field(default_factory=ToxicitySection)

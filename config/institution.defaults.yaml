@@ -48,3 +48,51 @@ cardiotoxicity:
     cumulative_hard_stop: hard_block
     lvef_absolute: soft_block
     lvef_delta: soft_block
+
+toxicity:
+  ctcae_version: "5.0"
+
+  neuropathy:
+    grade_actions:
+      0: { dose_pct: 100, action: continue }
+      1: { dose_pct: 100, action: continue }
+      2: { dose_pct: 80,  action: hold_one_cycle_then_resume }
+      3: { dose_pct: 75,  action: hold_until_recovered_then_resume_discontinue_on_recurrence }
+      4: { dose_pct: 0,   action: discontinue_permanently }
+    use_higher_grade_for_action: true
+
+  infusion_reactions:
+    symptom_vocab:
+      - flushing
+      - urticaria
+      - hypotension
+      - hypertension
+      - dyspnea
+      - bronchospasm
+      - back_pain
+      - chest_pain
+      - anaphylaxis
+    rechallenge_policy:
+      1: { rechallenge: true,  rate_pct: 50, premed_enhance: false }
+      2: { rechallenge: true,  rate_pct: 50, premed_enhance: true }
+      3: { rechallenge: false, switch_agent_to: nab_paclitaxel_or_docetaxel }
+      4: { rechallenge: false, switch_agent_to: nab_paclitaxel_or_docetaxel, hard_block: true }
+
+  gcsf:
+    agent_vocab: [pegfilgrastim, filgrastim, lipegfilgrastim]
+    policy:
+      dose_dense_q2w: primary
+      standard_q3w: secondary
+    stimulated_window_days: 7
+
+  symptoms:
+    set_all_phases: [nausea, fatigue, mucositis, constipation]
+    set_t_phase_additional: [arthralgia, peripheral_edema]
+    advisory_grade: 3
+
+  blocking_modes:
+    neuropathy_grade_2: advisory
+    neuropathy_grade_3_before_t: soft_block
+    neuropathy_grade_4: hard_block
+    infusion_reaction_grade_4: hard_block
+    symptoms_grade_3_or_higher: advisory
