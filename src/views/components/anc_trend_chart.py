@@ -3,6 +3,7 @@ from datetime import date
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.dates as mdates
+import matplotlib.patches as mpatches
 
 from utils import BG, BG_ALT, FG, FG_MUTED, SEPARATOR, FONT_HEADER, FONT_LABEL
 from models import get_labs_by_patient
@@ -15,6 +16,7 @@ _LINE_COLOR  = '#6b7494'  # FG_MUTED — neutral trend line
 _GRID_COLOR  = '#2a2f42'  # SEPARATOR — grid lines
 _TEXT_COLOR  = '#e8eaf0'  # FG — axis labels and ticks
 _THRESH_COLOR = '#e05555' # red dashed threshold line
+_GCSF_COLOR   = '#80DEEA'  # teal — G-CSF stimulated marker tint
 
 
 class ANCTrendChart(tk.Frame):
@@ -26,10 +28,11 @@ class ANCTrendChart(tk.Frame):
     refresh()                — reload data from DB and redraw
     """
 
-    def __init__(self, parent, conn, patient_id=None, **kwargs):
+    def __init__(self, parent, conn, patient_id=None, patient_str_id=None, **kwargs):
         super().__init__(parent, bg=BG_ALT, **kwargs)
-        self.conn       = conn
-        self.patient_id = patient_id
+        self.conn           = conn
+        self.patient_id     = patient_id      # integer DB id
+        self.patient_str_id = patient_str_id  # string 'PT-001' — used for G-CSF lookup
 
         self._build_header()
         self._build_canvas()
@@ -130,24 +133,56 @@ class ANCTrendChart(tk.Frame):
                      color=_TEXT_COLOR, fontsize=8, alpha=0.6)
         self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
 
+    def _gcsf_stimulated_dates(self) -> set:
+        """Return a set of date objects that fall within any G-CSF stimulation window.
+
+        Returns empty set when patient_str_id is not set or gcsf table is unavailable.
+        """
+        if not self.patient_str_id:
+            return set()
+        try:
+            from services.gcsf import gcsf_dates_for_patient
+            from config import get as get_config
+            window = get_config().toxicity.gcsf.stimulated_window_days
+            return set(gcsf_dates_for_patient(self.conn, self.patient_str_id, window))
+        except Exception:
+            return set()
+
     def _draw_chart(self, dates, ancs):
         """Draw the full trend line with per-point color-coded markers.
 
         Approach: plot a single neutral gray line first (zorder=2), then
-        overlay individual colored circle markers (zorder=3) using get_anc_status()
-        so each point reflects its threshold category. This is cleaner than
-        plotting separate colored line segments and keeps the trend line uniform.
+        overlay individual colored markers (zorder=3) using get_anc_status().
+        G-CSF-stimulated readings use a triangle (^) marker; all others use a circle (o).
         """
+        stimulated = self._gcsf_stimulated_dates()
+        has_gcsf   = bool(stimulated)
+
         # Neutral trend line
         self.ax.plot(dates, ancs, color=_LINE_COLOR, linewidth=2, zorder=2)
 
-        # Color-coded markers — one plot call per point to apply per-threshold color
+        # Color-coded markers — circle for normal, triangle for G-CSF-stimulated
         for d, anc in zip(dates, ancs):
-            status = get_anc_status(anc)
-            self.ax.plot(d, anc, 'o',
-                         color=status['color'], markersize=8, zorder=3)
+            status    = get_anc_status(anc)
+            is_stim   = d in stimulated
+            marker    = '^' if is_stim else 'o'
+            edgecolor = _GCSF_COLOR if is_stim else 'none'
+            self.ax.plot(d, anc, marker,
+                         color=status['color'], markersize=9 if is_stim else 8,
+                         markeredgecolor=edgecolor, markeredgewidth=1.5,
+                         zorder=3)
 
         self._draw_threshold_line()
+
+        # Legend: only add G-CSF entry when there are G-CSF records
+        if has_gcsf:
+            gcsf_patch = mpatches.Patch(
+                facecolor=_GCSF_COLOR, edgecolor=_GCSF_COLOR,
+                label='▲ G-CSF stimulated'
+            )
+            self.ax.legend(handles=[gcsf_patch],
+                           facecolor=_AX_BG, edgecolor=_GRID_COLOR,
+                           labelcolor=_TEXT_COLOR, fontsize=7, loc='upper right')
 
         # AutoDateLocator picks sensible tick intervals for any date range
         self.ax.xaxis.set_major_locator(mdates.AutoDateLocator())
@@ -166,7 +201,8 @@ class ANCTrendChart(tk.Frame):
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def load_patient(self, patient_id):
+    def load_patient(self, patient_id, patient_str_id=None):
         """Switch to a different patient and refresh."""
-        self.patient_id = patient_id
+        self.patient_id     = patient_id
+        self.patient_str_id = patient_str_id
         self.refresh()
