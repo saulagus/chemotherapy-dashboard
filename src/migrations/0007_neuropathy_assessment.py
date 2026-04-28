@@ -11,8 +11,8 @@ def up(conn):
     cursor.executescript('''
         CREATE TABLE IF NOT EXISTS neuropathy_assessment (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id      TEXT    NOT NULL REFERENCES patient(id),
-            cycle_id        INTEGER REFERENCES cycle(id),
+            patient_id      TEXT    NOT NULL REFERENCES patients(patient_id),
+            cycle_id        INTEGER REFERENCES cycles(id),
             assessment_date DATE    NOT NULL,
             sensory_grade   INTEGER NOT NULL CHECK (sensory_grade BETWEEN 0 AND 4),
             motor_grade     INTEGER NOT NULL CHECK (motor_grade   BETWEEN 0 AND 4),
