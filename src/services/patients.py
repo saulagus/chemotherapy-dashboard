@@ -6,11 +6,71 @@ on any error both are rolled back together.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import models
-from models import Patient
+from models import Patient, _row_to_patient, _PATIENT_COLUMNS
 from services.audit import write_audit
+
+
+def list_patients(
+    conn,
+    search: str = '',
+    sort_by: str = 'name',
+    sort_dir: str = 'asc',
+    phase_filter: Optional[str] = None,
+) -> List[Patient]:
+    """Return patients matching search/filter/sort criteria. Soft-deleted excluded.
+
+    search: substring match on patient_id or name (case-insensitive).
+    sort_by: 'name' | 'patient_id' | 'age' | 'diagnosis_date'.
+    sort_dir: 'asc' | 'desc'.
+    phase_filter: None (all) | 'AC' | 'T' | 'Completed'.
+    """
+    allowed_sort = {'name', 'patient_id', 'age', 'diagnosis_date'}
+    col = sort_by if sort_by in allowed_sort else 'name'
+    direction = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'
+
+    clauses = ['deleted_at IS NULL']
+    params: list = []
+
+    if search:
+        clauses.append('(LOWER(patient_id) LIKE ? OR LOWER(name) LIKE ?)')
+        term = f'%{search.lower()}%'
+        params.extend([term, term])
+
+    if phase_filter == 'Completed':
+        clauses.append(
+            '''id IN (SELECT patient_id FROM cycles
+                      WHERE status = 'completed'
+                      GROUP BY patient_id HAVING COUNT(*) >= 8)'''
+        )
+    elif phase_filter in ('AC', 'T'):
+        if phase_filter == 'AC':
+            clauses.append(
+                '''id NOT IN (SELECT patient_id FROM cycles
+                              WHERE status = 'completed'
+                              GROUP BY patient_id HAVING COUNT(*) >= 8)
+                   AND (SELECT COALESCE(MAX(cycle_number), 0) FROM cycles
+                        WHERE cycles.patient_id = patients.id
+                              AND status = 'completed') < 5'''
+            )
+        else:
+            clauses.append(
+                '''id NOT IN (SELECT patient_id FROM cycles
+                              WHERE status = 'completed'
+                              GROUP BY patient_id HAVING COUNT(*) >= 8)
+                   AND (SELECT COALESCE(MAX(cycle_number), 0) FROM cycles
+                        WHERE cycles.patient_id = patients.id
+                              AND status = 'completed') >= 4'''
+            )
+
+    where = ' AND '.join(clauses)
+    sql = f'SELECT {_PATIENT_COLUMNS} FROM patients WHERE {where} ORDER BY {col} {direction}'
+
+    cursor = conn.cursor()
+    cursor.execute(sql, params)
+    return [_row_to_patient(row) for row in cursor.fetchall()]
 
 
 def create_patient(conn, patient: Patient, actor: Optional[str] = None) -> Patient:
