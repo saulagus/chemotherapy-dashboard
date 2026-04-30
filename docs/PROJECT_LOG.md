@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-04-30 — Sprint 8 Day 31 (Planning + Scaffolding)
+
+### Specialist YAML Review
+- All defaults accepted (no specialist overrides on Day 31); shipping config defaults as-is per plan.
+- Defaults committed: scheduling cadence (q3w=21d, q2w=14d), lab freshness (72h), pre-cycle ANC thresholds (AC/T=1500, dose-dense C2+=1000), platelets (100000), blocking modes for all 9 rules, low-ANC banner thresholds (red<500, orange<1000).
+
+### Plan
+- Added `scheduling:`, `labs:`, `precycle:`, `alerts:` blocks to `config/institution.defaults.yaml`
+- Extended Pydantic schema with `SchedulingSection`, `LabsSection`, `PrecycleSection`, `AlertsSection`
+- Created `src/clinical/scheduling.py` — `expected_cycle_date()`, `cycle_status()` pure functions
+- Created `src/clinical/precycle.py` — 9 rule functions, `RuleResult`/`ChecklistResult`/`ChecklistInputs` dataclasses, `run_checklist()` aggregator
+- Created `src/services/checklist.py` — `gather_inputs()`, `evaluate()` wiring
+- Added `last_completed_cycle_date()` to `services/cycles.py`
+- Created `src/views/components/low_anc_banner.py` — dismissible ANC alert banner
+- Created `src/views/components/cycle_status_indicator.py` — status dot + tooltip helper
+- Created `src/views/dialogs/precycle_checklist_dialog.py` — full checklist dialog
+- Added `checklist_override` to audit ACTIONS set
+- Created 6 test files; 62 new tests passing
+
+### Test Count
+698 tests — 0 regressions
+
+---
+
 ## 2026-04-28 — Sprint 7 Day 30 (Close-out)
 
 ### Completed

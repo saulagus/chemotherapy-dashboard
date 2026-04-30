@@ -32,6 +32,8 @@ ACTIONS = {
     'gcsf_created', 'gcsf_updated', 'gcsf_deleted',
     # Symptom actions (US-030)
     'symptom_created', 'symptom_updated', 'symptom_deleted',
+    # Pre-cycle checklist override (US-033)
+    'checklist_override',
 }
 
 

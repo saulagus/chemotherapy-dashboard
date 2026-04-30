@@ -96,3 +96,42 @@ toxicity:
     neuropathy_grade_4: hard_block
     infusion_reaction_grade_4: hard_block
     symptoms_grade_3_or_higher: advisory
+
+scheduling:
+  cadence_days:
+    standard_q3w: 21
+    dose_dense_q2w: 14
+  due_within_days: 7
+  overdue_after_days: 0
+
+labs:
+  freshness_hours: 72
+
+precycle:
+  anc:
+    ac:        { min_per_uL: 1500 }
+    t:         { min_per_uL: 1500 }
+    dose_dense_from_cycle_2: { min_per_uL: 1000 }
+  platelets:
+    min_per_uL: 100000
+  active_infection:
+    require_nurse_attestation: true
+  neuropathy_t_phase_max_grade: 1
+  symptoms_advisory_grade: 3
+
+  blocking_modes:
+    anc_below_threshold:        soft_block
+    platelets_below_threshold:  soft_block
+    labs_stale:                 advisory
+    active_infection:           soft_block
+    cumulative_red:             soft_block
+    cumulative_hard_stop:       hard_block
+    lvef_abnormal:              soft_block
+    neuropathy_t_above_max:     soft_block
+    symptoms_grade_3_or_higher: advisory
+
+alerts:
+  low_anc_banner:
+    red_below_per_uL: 500
+    orange_below_per_uL: 1000
+    dismiss_scope: session

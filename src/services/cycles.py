@@ -171,6 +171,25 @@ def cumulative_dose(conn, patient_id: int) -> CumulativeSummary:
     )
 
 
+def last_completed_cycle_date(conn, patient_id: int) -> Optional['date']:
+    """Return the actual_date of the most recent completed cycle, or None."""
+    cursor = conn.cursor()
+    cursor.execute(
+        '''SELECT actual_date FROM cycles
+           WHERE patient_id = ? AND status = 'completed'
+           ORDER BY actual_date DESC LIMIT 1''',
+        (patient_id,),
+    )
+    row = cursor.fetchone()
+    if row is None or row[0] is None:
+        return None
+    from datetime import date as _date
+    val = row[0]
+    if isinstance(val, str):
+        return _date.fromisoformat(val)
+    return val
+
+
 def delete_cycle(conn, cycle_id: int, actor: Optional[str] = None) -> None:
     """Hard-delete a cycle. Writes a 'delete' audit row preserving before-state."""
     before = _get_cycle_by_id(conn, cycle_id)
