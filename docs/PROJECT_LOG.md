@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-04-30 — Sprint 8 Day 41 (Close-out)
+
+### Completed
+- Day 32: US-031 — patient list search, filter, sort (18 tests)
+- Day 33: US-034 — low-ANC alert banner with red/orange thresholds and dismissible session state (14 tests)
+- Day 34–35: US-032 — cycle scheduling rules, last-cycle helper, status column in patient list (27 tests)
+- Day 36–39: US-033 — 9 pre-cycle checklist rules, aggregator, checklist service, dialog wired into timeline (51 tests)
+- Day 40: Sprint 8 e2e integration tests — 9 cross-story scenarios (25 tests)
+- Day 41: Summary doc, project log close-out, tag v2-sprint8
+
+### Test Count
+783 tests — 0 regressions
+
+### Sprint 8 Final Status
+All four user stories delivered:
+- US-031 Patient list search + filter + sort (2 pts) — DONE
+- US-032 Next-cycle-due / overdue status (3 pts) — DONE
+- US-033 Pre-cycle safety checklist (4 pts) — DONE
+- US-034 Low-ANC alert banner (2 pts) — DONE
+
+### Decisions
+- Checklist dialog runs before cycle-completion dialog; existing Sprint 6 override flow unchanged
+- No new schema migrations — all data sourced from existing tables
+- Audit log is the sole record of checklist overrides (no `cycle.checklist_overrides_json` column)
+- Two override prompts may fire on the same save (checklist + Sprint 6 cumulative/LVEF); two audit rows acceptable
+
+---
+
 ## 2026-04-30 — Sprint 8 Day 31 (Planning + Scaffolding)
 
 ### Specialist YAML Review
