@@ -332,9 +332,17 @@ class TimelineComponent(tk.Frame):
         else:
             patient    = get_patient_by_db_id(self.controller.conn, self.patient_id)
             start_date = patient.start_date if patient else None
-            CycleCompletionDialog(
+
+            def _open_completion():
+                CycleCompletionDialog(
+                    self, self.controller.conn, self.patient_id,
+                    cycle_number, cycle, on_save=_on_save, start_date=start_date
+                )
+
+            from views.dialogs.precycle_checklist_dialog import PrecycleChecklistDialog
+            PrecycleChecklistDialog(
                 self, self.controller.conn, self.patient_id,
-                cycle_number, cycle, on_save=_on_save, start_date=start_date
+                cycle_number, on_proceed=_open_completion,
             )
 
     def _update_status_label(self, cycle_map: dict) -> None:
