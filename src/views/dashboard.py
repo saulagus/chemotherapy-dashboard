@@ -7,6 +7,7 @@ from views.components.timeline import TimelineComponent
 from views.components.latest_labs_panel import LatestLabsPanel
 from views.components.anc_trend_chart import ANCTrendChart
 from views.components.cardiotoxicity_panel import CardiotoxicityPanel
+from views.components.low_anc_banner import LowAncBanner
 
 
 class DashboardView(tk.Frame):
@@ -22,6 +23,10 @@ class DashboardView(tk.Frame):
 
     def _build_ui(self):
         self.configure(bg=BG)
+
+        # ── Low-ANC banner (above patient header) ─────────────────────────────
+        self.anc_banner = LowAncBanner(self, self.app.conn)
+        self.anc_banner.pack(fill='x')
 
         # ── Patient header ─────────────────────────────────────────────────────
         self.header = PatientHeader(self, self.app,
@@ -77,6 +82,7 @@ class DashboardView(tk.Frame):
         self.patient_id = patient_id
         self.patient = get_patient_by_db_id(self.app.conn, patient_id) if patient_id else None
         if patient_id:
+            self.anc_banner.load_patient(patient_id)
             self.timeline.load_patient(patient_id)
             self.labs_panel.load_patient(patient_id)
             self.chart.load_patient(patient_id)
@@ -127,4 +133,5 @@ class DashboardView(tk.Frame):
     def _refresh_labs(self):
         self.labs_panel.refresh()
         self.chart.refresh()
+        self.anc_banner.refresh()
 
