@@ -29,11 +29,15 @@ class PatientHeader(tk.Frame):
     """
 
     def __init__(self, parent, controller, on_add_labs=None,
-                 on_show_history=None, **kwargs):
+                 on_show_history=None, on_export_pdf=None,
+                 on_export_csv=None, on_print=None, **kwargs):
         super().__init__(parent, bg=BG_ALT, **kwargs)
         self.controller       = controller
         self.on_add_labs      = on_add_labs
         self.on_show_history  = on_show_history
+        self.on_export_pdf    = on_export_pdf
+        self.on_export_csv    = on_export_csv
+        self.on_print         = on_print
         self._build_ui()
 
     def _build_ui(self):
@@ -57,6 +61,33 @@ class PatientHeader(tk.Frame):
             add_btn.bind('<Button-1>', lambda e: self.on_add_labs())
             add_btn.bind('<Enter>', lambda e: add_btn.config(fg=FG))
             add_btn.bind('<Leave>', lambda e: add_btn.config(fg=FG_MUTED))
+
+        if self.on_print is not None:
+            print_btn = tk.Label(action_row, text="Print",
+                                 font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
+                                 cursor='hand2', padx=8)
+            print_btn.pack(side='right')
+            print_btn.bind('<Button-1>', lambda e: self.on_print())
+            print_btn.bind('<Enter>', lambda e: print_btn.config(fg=FG))
+            print_btn.bind('<Leave>', lambda e: print_btn.config(fg=FG_MUTED))
+
+        if self.on_export_csv is not None:
+            csv_btn = tk.Label(action_row, text="Export CSV",
+                               font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
+                               cursor='hand2', padx=8)
+            csv_btn.pack(side='right')
+            csv_btn.bind('<Button-1>', lambda e: self.on_export_csv())
+            csv_btn.bind('<Enter>', lambda e: csv_btn.config(fg=FG))
+            csv_btn.bind('<Leave>', lambda e: csv_btn.config(fg=FG_MUTED))
+
+        if self.on_export_pdf is not None:
+            pdf_btn = tk.Label(action_row, text="Export PDF",
+                               font=('Arial', FONT_BODY), bg=BG_ALT, fg=FG_MUTED,
+                               cursor='hand2', padx=8)
+            pdf_btn.pack(side='right')
+            pdf_btn.bind('<Button-1>', lambda e: self.on_export_pdf())
+            pdf_btn.bind('<Enter>', lambda e: pdf_btn.config(fg=FG))
+            pdf_btn.bind('<Leave>', lambda e: pdf_btn.config(fg=FG_MUTED))
 
         if self.on_show_history is not None:
             hist_btn = tk.Label(action_row, text="History",

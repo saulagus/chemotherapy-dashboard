@@ -1,5 +1,5 @@
 import tkinter as tk
-from utils import BG, BG_ALT, SEPARATOR, FONT_HEADER, FG
+from utils import BG, BG_ALT, SEPARATOR, FONT_HEADER, FONT_BODY, FONT_HINT, FG, FG_MUTED
 from models import get_patient_by_db_id
 from services.cycles import cumulative_dose
 from views.components.patient_header import PatientHeader
@@ -8,6 +8,7 @@ from views.components.latest_labs_panel import LatestLabsPanel
 from views.components.anc_trend_chart import ANCTrendChart
 from views.components.cardiotoxicity_panel import CardiotoxicityPanel
 from views.components.low_anc_banner import LowAncBanner
+from views.components.dose_mod_history_panel import DoseModHistoryPanel
 
 
 class DashboardView(tk.Frame):
@@ -17,34 +18,49 @@ class DashboardView(tk.Frame):
         super().__init__(parent, **kwargs)
         self.app = app
         self.patient_id = None
-        self.patient = None     # Full Patient object loaded from DB.
+        self.patient = None
         self._build_ui()
         self.set_patient(patient_id)
 
     def _build_ui(self):
         self.configure(bg=BG)
 
-        # ── Low-ANC banner (above patient header) ─────────────────────────────
+        # ── Low-ANC banner ────────────────────────────────────────────────────
         self.anc_banner = LowAncBanner(self, self.app.conn)
         self.anc_banner.pack(fill='x')
 
-        # ── Patient header ─────────────────────────────────────────────────────
+        # ── Patient header ────────────────────────────────────────────────────
         self.header = PatientHeader(self, self.app,
                                     on_add_labs=self._on_add_labs,
-                                    on_show_history=self._on_show_history)
+                                    on_show_history=self._on_show_history,
+                                    on_export_pdf=self._on_export_pdf,
+                                    on_export_csv=self._on_export_csv,
+                                    on_print=self._on_print)
         self.header.pack(fill='x')
 
         tk.Frame(self, bg=SEPARATOR, height=1).pack(fill='x')
 
-        # ── Main content area ──────────────────────────────────────────────────
-        content = tk.Frame(self, bg=BG, padx=16, pady=16)
-        content.pack(fill='both', expand=True)
-        content.columnconfigure(0, weight=1)
-        content.rowconfigure(0, weight=0)  # timeline fixed height
-        content.rowconfigure(1, weight=2)  # labs+chart expand
-        content.rowconfigure(2, weight=1)  # cardiotoxicity panel
+        # ── Scrollable content ────────────────────────────────────────────────
+        canvas = tk.Canvas(self, bg=BG, highlightthickness=0)
+        scrollbar = tk.Scrollbar(self, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        # ── Timeline component ─────────────────────────────────────────────────
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+
+        content = tk.Frame(canvas, bg=BG, padx=16, pady=16)
+        content_window = canvas.create_window((0, 0), window=content, anchor='nw')
+
+        def _on_configure(event):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+            canvas.itemconfig(content_window, width=canvas.winfo_width())
+
+        content.bind('<Configure>', _on_configure)
+        canvas.bind('<Configure>', lambda e: canvas.itemconfig(content_window, width=e.width))
+
+        content.columnconfigure(0, weight=1)
+
+        # ── Timeline ──────────────────────────────────────────────────────────
         timeline_frame = tk.Frame(content, bg=BG_ALT, padx=16, pady=16)
         timeline_frame.grid(row=0, column=0, sticky='nsew', pady=(0, 8))
 
@@ -57,12 +73,12 @@ class DashboardView(tk.Frame):
         self.timeline.on_cycle_save = self._on_cycle_saved
         self.timeline.pack(anchor='w', pady=(0, 8))
 
-        # ── Bottom section: labs + chart side by side ──────────────────────────
+        # ── Labs + chart ──────────────────────────────────────────────────────
         bottom = tk.Frame(content, bg=BG)
-        bottom.grid(row=1, column=0, sticky='nsew')
+        bottom.grid(row=1, column=0, sticky='nsew', pady=(0, 8))
+        bottom.columnconfigure(0, weight=1)
+        bottom.columnconfigure(1, weight=2)
         bottom.rowconfigure(0, weight=1)
-        bottom.columnconfigure(0, weight=1)   # labs ~35%
-        bottom.columnconfigure(1, weight=2)   # chart ~65%
 
         self.labs_panel = LatestLabsPanel(bottom, self.app.conn,
                                           on_add_labs=self._on_add_labs)
@@ -71,14 +87,17 @@ class DashboardView(tk.Frame):
         self.chart = ANCTrendChart(bottom, self.app.conn)
         self.chart.grid(row=0, column=1, sticky='nsew')
 
-        # ── Cardiotoxicity panel ───────────────────────────────────────────────
+        # ── Cardiotoxicity panel ──────────────────────────────────────────────
         self.cardiotoxicity_panel = CardiotoxicityPanel(
             content, self.app.conn, on_add_lvef=self._on_add_lvef
         )
-        self.cardiotoxicity_panel.grid(row=2, column=0, sticky='nsew', pady=(8, 0))
+        self.cardiotoxicity_panel.grid(row=2, column=0, sticky='nsew', pady=(0, 8))
+
+        # ── Dose modification history panel ──────────────────────────────────
+        self.dose_mod_panel = DoseModHistoryPanel(content, self.app.conn)
+        self.dose_mod_panel.grid(row=3, column=0, sticky='nsew', pady=(0, 8))
 
     def set_patient(self, patient_id):
-        """Load patient from DB, store in self.patient, then refresh display."""
         self.patient_id = patient_id
         self.patient = get_patient_by_db_id(self.app.conn, patient_id) if patient_id else None
         if patient_id:
@@ -87,15 +106,14 @@ class DashboardView(tk.Frame):
             self.labs_panel.load_patient(patient_id)
             self.chart.load_patient(patient_id)
             self.cardiotoxicity_panel.load_patient(patient_id)
+            self.dose_mod_panel.load_patient(patient_id)
         self.refresh()
 
     def refresh(self):
-        """Refresh all dashboard components from self.patient."""
         self.header.update_display(self.patient)
         self._refresh_header_badge()
 
     def _refresh_header_badge(self):
-        """Recompute cumulative dose and update the header risk badge."""
         if self.patient_id is None:
             self.header.update_cumulative_badge(None)
             return
@@ -103,9 +121,9 @@ class DashboardView(tk.Frame):
         self.header.update_cumulative_badge(summary)
 
     def _on_cycle_saved(self):
-        """Called by TimelineComponent after any cycle create/update/delete."""
         self.cardiotoxicity_panel.refresh()
         self._refresh_header_badge()
+        self.dose_mod_panel.refresh()
 
     def _on_add_labs(self):
         if self.patient_id is None:
@@ -130,8 +148,72 @@ class DashboardView(tk.Frame):
         from views.dialogs.audit_viewer_dialog import AuditViewerDialog
         AuditViewerDialog(self.winfo_toplevel(), self.app.conn, self.patient)
 
+    def _on_export_pdf(self):
+        if self.patient is None:
+            return
+        from views.dialogs.export_pdf_dialog import ExportPdfDialog
+        from config import get as get_config
+        ExportPdfDialog(self.winfo_toplevel(), self.app.conn,
+                        self.patient_id, self.patient.patient_id, get_config())
+
+    def _on_export_csv(self):
+        if self.patient is None:
+            return
+        from views.dialogs.export_csv_dialog import ExportCsvDialog
+        from config import get as get_config
+        ExportCsvDialog(self.winfo_toplevel(), self.app.conn,
+                        self.patient_id, self.patient.patient_id, get_config())
+
+    def _on_print(self):
+        if self.patient is None:
+            return
+        import os, subprocess, tempfile
+        from datetime import date
+        from config import get as get_config
+        from reports.data import gather
+        from reports.pdf_print_dashboard import render
+        from services.audit import current_actor
+
+        config = get_config()
+        today = date.today()
+        try:
+            data = gather(self.app.conn, self.patient_id, config, today)
+            pdf_bytes = render(data, config)
+
+            tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+            tmp.write(pdf_bytes)
+            tmp.close()
+
+            # Write audit row
+            import json
+            cursor = self.app.conn.cursor()
+            cursor.execute(
+                '''INSERT INTO audit_log (actor, entity, entity_id, action, before_json, after_json)
+                   VALUES (?, ?, ?, ?, NULL, ?)''',
+                (current_actor(), 'patient', self.patient_id, 'print_dashboard',
+                 json.dumps({'patient_id': self.patient.patient_id})),
+            )
+            self.app.conn.commit()
+
+            # OS print
+            try:
+                if os.name == 'nt':
+                    os.startfile(tmp.name, 'print')
+                else:
+                    subprocess.run(['lpr', tmp.name], check=True)
+            except Exception:
+                import platform
+                if platform.system() == 'Darwin':
+                    subprocess.run(['open', tmp.name])
+                else:
+                    from tkinter import messagebox
+                    messagebox.showinfo("Print",
+                        f"PDF saved to: {tmp.name}\nOpen it to print.", parent=self)
+        except Exception as exc:
+            from tkinter import messagebox
+            messagebox.showerror("Print Failed", str(exc), parent=self)
+
     def _refresh_labs(self):
         self.labs_panel.refresh()
         self.chart.refresh()
         self.anc_banner.refresh()
-

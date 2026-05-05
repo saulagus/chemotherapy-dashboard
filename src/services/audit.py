@@ -34,6 +34,10 @@ ACTIONS = {
     'symptom_created', 'symptom_updated', 'symptom_deleted',
     # Pre-cycle checklist override (US-033)
     'checklist_override',
+    # Export actions (Sprint 9 — US-035, US-037, US-038)
+    'export_pdf',
+    'export_csv',
+    'print_dashboard',
 }
 
 
