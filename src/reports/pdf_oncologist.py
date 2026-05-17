@@ -62,7 +62,7 @@ def render(data: 'PatientReportData', config) -> bytes:
     width, height = page_size
 
     buf = io.BytesIO()
-    c = Canvas(buf, pagesize=page_size)
+    c = Canvas(buf, pagesize=page_size, invariant=1)
 
     y = height - margin
     col_w = width - 2 * margin
@@ -316,7 +316,7 @@ def _draw_anc_chart(c, data, config, margin, col_w, y):
 
 def _get_all_labs_for_report(data):
     """Return list of lab objects from data if available, else empty list."""
-    return []
+    return list(getattr(data, 'lab_history', []) or [])
 
 
 def _draw_toxicity(c, data, margin, col_w, y):

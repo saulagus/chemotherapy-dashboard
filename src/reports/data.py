@@ -34,6 +34,7 @@ class PatientReportData:
 
     # Labs
     latest_labs: Optional[Any] = None    # Lab dataclass or None
+    lab_history: List[Any] = field(default_factory=list)  # list[Lab], oldest -> newest
 
     # Toxicity summary
     neuropathy_latest: Optional[Any] = None
@@ -60,7 +61,7 @@ class PatientReportData:
 
 def gather(conn, patient_id: int, config, today: date) -> PatientReportData:
     """Assemble all report data from services. Single entry point for all templates."""
-    from models import get_patient_by_db_id, get_cycles_by_patient, get_latest_lab
+    from models import get_patient_by_db_id, get_cycles_by_patient, get_latest_lab, get_labs_by_patient
     from services.cycles import cumulative_dose, last_completed_cycle_date
     from services.lvef import list_lvef, get_baseline_lvef
     from services.neuropathy import latest_neuropathy
@@ -96,6 +97,7 @@ def gather(conn, patient_id: int, config, today: date) -> PatientReportData:
 
     # Latest labs
     labs = get_latest_lab(conn, patient_id)
+    lab_history = get_labs_by_patient(conn, patient_id)
 
     # Neuropathy
     neuro = latest_neuropathy(conn, patient_str_id)
@@ -152,7 +154,7 @@ def gather(conn, patient_id: int, config, today: date) -> PatientReportData:
         date.fromordinal(today.toordinal() - recent_days)
     recent_audit = [
         row for row in all_audit
-        if row['ts'][:10] >= cutoff.isoformat()
+        if _audit_ts_date(row['ts']) >= cutoff.isoformat()
     ]
 
     # All dose mods
@@ -175,6 +177,7 @@ def gather(conn, patient_id: int, config, today: date) -> PatientReportData:
         lvef_status=lv_status,
         lvef_reason=lv_reason,
         latest_labs=labs,
+        lab_history=lab_history,
         neuropathy_latest=neuro,
         neuropathy_effective_grade=neuro_grade,
         reaction_latest=reaction,
@@ -219,3 +222,10 @@ def _load_last_checklist(conn, patient_id, today, config, cum_summary,
         return run_checklist(inputs, config.model_dump())
     except Exception:
         return None
+
+
+def _audit_ts_date(ts) -> str:
+    """Return an ISO date string from an audit timestamp value."""
+    if hasattr(ts, 'date'):
+        return ts.date().isoformat()
+    return str(ts)[:10]

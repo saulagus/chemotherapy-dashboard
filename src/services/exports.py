@@ -38,8 +38,11 @@ def export_patient_pdf(
     audience: 'oncologist' | 'pcp' | 'patient'
     Writes one audit_log row with action='export_pdf'.
     """
+    if audience not in {'oncologist', 'pcp', 'patient'}:
+        raise ValueError(f"Unknown audience: {audience!r}")
+
     from reports.data import gather
-    from services.audit import write_audit, current_actor
+    from services.audit import current_actor
 
     data = gather(conn, patient_id, config, today)
 
@@ -47,10 +50,8 @@ def export_patient_pdf(
         from reports.pdf_oncologist import render
     elif audience == 'pcp':
         from reports.pdf_pcp import render
-    elif audience == 'patient':
-        from reports.pdf_patient import render
     else:
-        raise ValueError(f"Unknown audience: {audience!r}")
+        from reports.pdf_patient import render
 
     pdf_bytes = render(data, config)
 
@@ -128,3 +129,43 @@ def export_patient_csv(
     conn.commit()
 
     return ExportResult(path=target_path, size_bytes=size, audience='csv', audit_id=audit_id)
+
+
+def export_print_dashboard_pdf(
+    conn,
+    patient_id: int,
+    target_path: str,
+    config,
+    today: date,
+    actor: Optional[str] = None,
+) -> ExportResult:
+    """Render the print-friendly dashboard PDF and write a print audit row."""
+    from reports.data import gather
+    from reports.pdf_print_dashboard import render
+    from services.audit import current_actor
+
+    data = gather(conn, patient_id, config, today)
+    pdf_bytes = render(data, config)
+
+    os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
+    with open(target_path, 'wb') as f:
+        f.write(pdf_bytes)
+
+    size = len(pdf_bytes)
+    filename = os.path.basename(target_path)
+    details = json.dumps({
+        'patient_id': data.patient_id,
+        'filename': filename,
+        'size_bytes': size,
+    })
+
+    cursor = conn.cursor()
+    cursor.execute(
+        '''INSERT INTO audit_log (actor, entity, entity_id, action, before_json, after_json)
+           VALUES (?, ?, ?, ?, NULL, ?)''',
+        (actor or current_actor(), 'patient', patient_id, 'print_dashboard', details),
+    )
+    audit_id = cursor.lastrowid
+    conn.commit()
+
+    return ExportResult(path=target_path, size_bytes=size, audience='print_dashboard', audit_id=audit_id)

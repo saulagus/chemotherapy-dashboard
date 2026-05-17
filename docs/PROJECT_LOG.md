@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-05-17 — Sprint 9 Restart + Close-out
+
+### Completed
+- Resumed from `ecd97a5` (`Added dose modification history view`) and audited Sprint 9 against `docs/SPRINT_9_PLAN.md`.
+- Confirmed Sprint 8 was closed and tagged; Sprint 10 remains blocked until Sprint 9 close-out.
+- Finished Sprint 9 verification gaps:
+  - `PatientReportData` now carries lab history so oncologist PDF ANC chart embeds real report data.
+  - CSV lab export handles config-driven soft-delete behavior when a `deleted_at` column exists.
+  - Print-friendly dashboard PDF generation and `print_dashboard` audit logging moved into `services/exports.py`.
+  - Added focused tests for report data, CSV export, PDF templates, export audit rows, and print-dashboard export.
+- Added `docs/THIRD_PARTY_LICENSES.md` with the ReportLab 4.2.5 license.
+- Wrote `docs/SPRINT_9_SUMMARY.md`.
+
+### Test Count
+834 tests — 0 regressions
+
+### Verification
+- Import check: Sprint 9 report/export imports OK
+- Logic check: report lab history flows into oncologist chart helper
+- Focused Sprint 9 tests: 43 passed
+- Broad non-GUI regression suite: 580 passed
+- Full suite with GUI access: 834 passed, 1 ReportLab deprecation warning
+- Warm report timing: oncologist 67.9 ms, print 0.7 ms, CSV 0.2 ms
+
+### Sprint 9 Final Status
+All four user stories delivered:
+- US-035 PDF patient summary export (4 pts) — DONE
+- US-036 Dose modification history view (2 pts) — DONE
+- US-037 CSV lab export (1 pt) — DONE
+- US-038 Print-friendly dashboard view (2 pts) — DONE
+
+### Decisions
+- ReportLab PDFs use deterministic `invariant=1` rendering for byte-stable tests.
+- `reports/data.py` is the single data assembler for all report templates.
+- Dashboard print uses the export service for PDF bytes and audit logging; dashboard remains responsible for OS print/open fallback.
+- Current labs schema hard-deletes labs; CSV exporter also supports a future `deleted_at` column without requiring a Sprint 9 migration.
+
+---
+
 ## 2026-04-30 — Sprint 8 Day 41 (Close-out)
 
 ### Completed

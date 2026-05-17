@@ -46,7 +46,7 @@ def write_csv(
 
 def _query_labs(conn, patient_str_id: str, from_date, to_date, include_soft_deleted: bool) -> list:
     """Return Lab records within the date range."""
-    from models import get_patient_by_id, get_labs_by_patient
+    from models import get_patient_by_id
 
     patient = get_patient_by_id(conn, patient_str_id)
     if patient is None:
@@ -56,6 +56,8 @@ def _query_labs(conn, patient_str_id: str, from_date, to_date, include_soft_dele
     query = 'SELECT id, patient_id, lab_date, anc, wbc, platelets, hemoglobin FROM labs WHERE patient_id = ?'
     params: list = [patient.id]
 
+    if _labs_has_deleted_at(conn) and not include_soft_deleted:
+        query += ' AND deleted_at IS NULL'
     if from_date:
         query += ' AND lab_date >= ?'
         params.append(from_date.isoformat() if hasattr(from_date, 'isoformat') else str(from_date))
@@ -73,6 +75,13 @@ def _query_labs(conn, patient_str_id: str, from_date, to_date, include_soft_dele
             wbc=r[4], platelets=r[5], hemoglobin=r[6])
         for r in rows
     ]
+
+
+def _labs_has_deleted_at(conn) -> bool:
+    """Return True when the labs table supports soft-delete filtering."""
+    cursor = conn.cursor()
+    cursor.execute('PRAGMA table_info(labs)')
+    return any(row[1] == 'deleted_at' for row in cursor.fetchall())
 
 
 def _load_gcsf_dates(conn, patient_str_id: str) -> set:

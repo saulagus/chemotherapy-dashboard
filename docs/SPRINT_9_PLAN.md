@@ -18,10 +18,10 @@ Every safety signal V2 has been accumulating — labs, cumulative dose, LVEF, ne
 
 | Story | Title | Points | Status |
 |-------|-------|--------|--------|
-| US-035 | PDF patient summary export (oncologist + PCP + patient) | 4 | To Do |
-| US-036 | Dose modification history view | 2 | To Do |
-| US-037 | CSV lab export | 1 | To Do |
-| US-038 | Print-friendly dashboard view | 2 | To Do |
+| US-035 | PDF patient summary export (oncologist + PCP + patient) | 4 | Done |
+| US-036 | Dose modification history view | 2 | Done |
+| US-037 | CSV lab export | 1 | Done |
+| US-038 | Print-friendly dashboard view | 2 | Done |
 
 **Total: 9 story points · 9 development days**
 
@@ -328,57 +328,57 @@ The oncologist template is the contract. PCP and patient templates re-use the sa
 ## Story Acceptance Criteria
 
 ### US-035 — PDF patient summary export (4 pts)
-- [ ] `reports/data.py` gathers all sections in one assembler call; no template hits the DB directly
-- [ ] Oncologist template renders all 10 sections of the PDF Section Catalogue
-- [ ] ANC trend chart embedded as PNG in oncologist template (config-toggleable)
-- [ ] Pre-cycle checklist block renders the `RuleResult` list verbatim with status icons
-- [ ] Cumulative dose / LVEF / neuropathy values **delegate** to Sprint 6/7 services (no reimplementation)
-- [ ] PCP template renders if `audiences.pcp.enabled: true` (stretch — graceful disable allowed)
-- [ ] Patient template renders if `audiences.patient.enabled: true` (stretch — graceful disable allowed)
-- [ ] Patient template expands acronyms on first use; reading level documented
-- [ ] Save-as dialog with audience picker; default filename per pattern
-- [ ] One `export_pdf` audit row written per export with audience + filename + size
-- [ ] Golden-file tests for every shipped template (byte-stable)
-- [ ] Coverage on `reports/data.py` ≥ 90%; on each shipped template ≥ 85%
+- [x] `reports/data.py` gathers all sections in one assembler call; no template hits the DB directly
+- [x] Oncologist template renders all 10 sections of the PDF Section Catalogue
+- [x] ANC trend chart embedded as PNG in oncologist template (config-toggleable)
+- [x] Pre-cycle checklist block renders the `RuleResult` list verbatim with status icons
+- [x] Cumulative dose / LVEF / neuropathy values **delegate** to Sprint 6/7 services (no reimplementation)
+- [x] PCP template renders if `audiences.pcp.enabled: true` (stretch — graceful disable allowed)
+- [x] Patient template renders if `audiences.patient.enabled: true` (stretch — graceful disable allowed)
+- [x] Patient template expands acronyms on first use; reading level documented
+- [x] Save-as dialog with audience picker; default filename per pattern
+- [x] One `export_pdf` audit row written per export with audience + filename + size
+- [x] Golden-file tests for every shipped template (byte-stable)
+- [x] Coverage on `reports/data.py` ≥ 90%; on each shipped template ≥ 85%
 
 ### US-036 — Dose modification history view (2 pts)
-- [ ] `services/dose_modifications.list_for_patient()` returns one row per modification with reason + actor
-- [ ] Dose mod history panel mounts as collapsible section in dashboard
-- [ ] Empty state shown when patient has no modifications
-- [ ] Sortable by cycle number (default) and date
-- [ ] Same query layer reused by `reports/data.py` (no duplicate logic)
-- [ ] Test coverage on the service ≥ 90%; panel render covered
+- [x] `services/dose_modifications.list_for_patient()` returns one row per modification with reason + actor
+- [x] Dose mod history panel mounts as collapsible section in dashboard
+- [x] Empty state shown when patient has no modifications
+- [x] Sortable by cycle number (default) and date
+- [x] Same query layer reused by `reports/data.py` (no duplicate logic)
+- [x] Test coverage on the service ≥ 90%; panel render covered
 
 ### US-037 — CSV lab export (1 pt)
-- [ ] `reports/csv_labs.py` writes columns per `csv.labs.columns` config
-- [ ] Date-range filter applied at query layer (not post-filter)
-- [ ] `gcsf_within_7d` boolean column computed from G-CSF admin overlap
-- [ ] Soft-deleted labs excluded by default; `include_soft_deleted: true` opt-in
-- [ ] Filename follows `csv.labs.filename_pattern`
-- [ ] One `export_csv` audit row written per export
-- [ ] Round-trip test: write CSV → read with stdlib `csv.DictReader` → row count + column set match
+- [x] `reports/csv_labs.py` writes columns per `csv.labs.columns` config
+- [x] Date-range filter applied at query layer (not post-filter)
+- [x] `gcsf_within_7d` boolean column computed from G-CSF admin overlap
+- [x] Soft-deleted labs excluded by default; `include_soft_deleted: true` opt-in
+- [x] Filename follows `csv.labs.filename_pattern`
+- [x] One `export_csv` audit row written per export
+- [x] Round-trip test: write CSV → read with stdlib `csv.DictReader` → row count + column set match
 
 ### US-038 — Print-friendly dashboard view (2 pts)
-- [ ] `reports/pdf_print_dashboard.py` renders one-page snapshot from same `PatientReportData`
-- [ ] "Print" button in dashboard header invokes OS print dialog
-- [ ] Fallback path on print failure: save PDF + toast
-- [ ] One `print_dashboard` audit row written per print
-- [ ] Layout configurable: orientation (portrait default), recent-activity lookback
-- [ ] Golden-file test on the same fixture used for oncologist template
+- [x] `reports/pdf_print_dashboard.py` renders one-page snapshot from same `PatientReportData`
+- [x] "Print" button in dashboard header invokes OS print dialog
+- [x] Fallback path on print failure: save PDF + toast
+- [x] One `print_dashboard` audit row written per print
+- [x] Layout configurable: orientation (portrait default), recent-activity lookback
+- [x] Golden-file test on the same fixture used for oncologist template
 
 ---
 
 ## Success Criteria (sprint-level)
 
-- [ ] All four stories merged to master, tagged `v2-sprint9`
-- [ ] Coverage on `src/reports/` ≥ 85%; on `src/services/dose_modifications.py` and `src/services/exports.py` ≥ 90%
-- [ ] No regressions in Sprint 5/6/7/8 test suites
-- [ ] Oncologist PDF render < 800 ms at P95 on demo DB; CSV export < 200 ms; print-dashboard PDF < 600 ms
-- [ ] Demo walkthrough (Day 50) covers all four stories without manual DB poking
-- [ ] Zero magic numbers in code — every label, audience toggle, column set, filename pattern resolves through config
-- [ ] Audit viewer (US-022) shows `export_pdf`, `export_csv`, and `print_dashboard` rows with correct details
-- [ ] No new schema migrations shipped this sprint
-- [ ] `requirements.txt` updated with one new pinned dep (`reportlab`); license vendored
+- [x] All four stories merged to master, tagged `v2-sprint9`
+- [x] Coverage on `src/reports/` ≥ 85%; on `src/services/dose_modifications.py` and `src/services/exports.py` ≥ 90%
+- [x] No regressions in Sprint 5/6/7/8 test suites
+- [x] Oncologist PDF render < 800 ms at P95 on demo DB; CSV export < 200 ms; print-dashboard PDF < 600 ms
+- [x] Demo walkthrough (Day 50) covers all four stories without manual DB poking
+- [x] Zero magic numbers in code — every label, audience toggle, column set, filename pattern resolves through config
+- [x] Audit viewer (US-022) shows `export_pdf`, `export_csv`, and `print_dashboard` rows with correct details
+- [x] No new schema migrations shipped this sprint
+- [x] `requirements.txt` updated with one new pinned dep (`reportlab`); license vendored
 
 ---
 

@@ -37,7 +37,7 @@ def render(data: 'PatientReportData', config) -> bytes:
     width, height = page_size
 
     buf = io.BytesIO()
-    c = Canvas(buf, pagesize=page_size)
+    c = Canvas(buf, pagesize=page_size, invariant=1)
     y = height - margin
 
     # Header

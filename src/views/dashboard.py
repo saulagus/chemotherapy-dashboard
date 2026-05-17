@@ -170,45 +170,31 @@ class DashboardView(tk.Frame):
         import os, subprocess, tempfile
         from datetime import date
         from config import get as get_config
-        from reports.data import gather
-        from reports.pdf_print_dashboard import render
-        from services.audit import current_actor
+        from services.exports import export_print_dashboard_pdf
 
         config = get_config()
         today = date.today()
         try:
-            data = gather(self.app.conn, self.patient_id, config, today)
-            pdf_bytes = render(data, config)
-
             tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-            tmp.write(pdf_bytes)
             tmp.close()
-
-            # Write audit row
-            import json
-            cursor = self.app.conn.cursor()
-            cursor.execute(
-                '''INSERT INTO audit_log (actor, entity, entity_id, action, before_json, after_json)
-                   VALUES (?, ?, ?, ?, NULL, ?)''',
-                (current_actor(), 'patient', self.patient_id, 'print_dashboard',
-                 json.dumps({'patient_id': self.patient.patient_id})),
+            result = export_print_dashboard_pdf(
+                self.app.conn, self.patient_id, tmp.name, config, today
             )
-            self.app.conn.commit()
 
             # OS print
             try:
                 if os.name == 'nt':
-                    os.startfile(tmp.name, 'print')
+                    os.startfile(result.path, 'print')
                 else:
-                    subprocess.run(['lpr', tmp.name], check=True)
+                    subprocess.run(['lpr', result.path], check=True)
             except Exception:
                 import platform
                 if platform.system() == 'Darwin':
-                    subprocess.run(['open', tmp.name])
+                    subprocess.run(['open', result.path])
                 else:
                     from tkinter import messagebox
                     messagebox.showinfo("Print",
-                        f"PDF saved to: {tmp.name}\nOpen it to print.", parent=self)
+                        f"PDF saved to: {result.path}\nOpen it to print.", parent=self)
         except Exception as exc:
             from tkinter import messagebox
             messagebox.showerror("Print Failed", str(exc), parent=self)
