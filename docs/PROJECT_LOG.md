@@ -2,6 +2,26 @@
 
 ---
 
+## 2026-05-18 — Sprint 10 V2 Close-out Planning
+
+### Completed
+- Reconciled `docs/V2_PLAN_SUMMARY.txt` against completed Sprint 5-9 work.
+- Identified `[N12] Hospitalization / ER visit capture` as the remaining V2 scope item missing from the old Sprint 10 plan.
+- Expanded `docs/SPRINT_10_PLAN.md` into the canonical V2 close-out plan.
+- Added `US-043 Hospitalization / ER visit capture` to Sprint 10.
+- Corrected the backup config plan to preserve the existing `backup.reminder_interval_days` key.
+- Added the Sprint 10 decision to use pinned coverage tooling so the `>=85%` clinical/services coverage target is measurable.
+
+### Decisions
+- Sprint 10 now contains one final clinical surface: hospitalization / ER visit capture.
+- US-043 is intentionally narrow: capture, view, audit, and test events; no hospitalization reports or decision-support rules in V2.
+- `docs/SPRINT_10_PLAN.md` remains the canonical Sprint 10 planning artifact.
+
+### Next
+- Implement US-043 first, then backup/restore, shortcuts/settings, performance/coverage, and release docs in the order defined by `docs/SPRINT_10_PLAN.md`.
+
+---
+
 ## 2026-05-17 — Sprint 9 Restart + Close-out
 
 ### Completed
